@@ -18,3 +18,4 @@ tests/test_uploads/
 tests/test_processed/
 *.cover
 .hypothesis/
+.idea/

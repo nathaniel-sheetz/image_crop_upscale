@@ -55,9 +55,19 @@ def crop_and_upscale(input_path, output_path, crop_coords, target_width, target_
     return output_path
 
 @app.route('/')
-def index():
-    """Render main page"""
+def mode_selector():
+    """Landing page to choose processing mode"""
+    return render_template('mode_selector.html')
+
+@app.route('/app')
+def server_app():
+    """Original Flask version with server processing"""
     return render_template('index.html', presets=PRESETS)
+
+@app.route('/client')
+def client_app():
+    """Serve client-side only version"""
+    return send_file('client-side/index.html')
 
 @app.route('/upload', methods=['POST'])
 def upload_file():

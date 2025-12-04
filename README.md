@@ -2,6 +2,25 @@
 
 A web application for cropping and upscaling images to specific resolutions for Samsung Frame TVs.
 
+## Two Modes Available
+
+This application offers two processing modes to suit your needs:
+
+### Server Mode (Recommended for Best Quality)
+- Uses Python Pillow with Lanczos resampling
+- Professional-grade image quality
+- Requires Flask installation
+- Best for: Quality-critical projects
+
+### Browser Mode (No Installation Required)
+- Processes images entirely in your browser
+- Uses Canvas API with high-quality smoothing
+- Works offline, no server needed
+- Your images never leave your device
+- Best for: Quick access, privacy, sharing
+
+**Choose your mode** when you start the application, or deploy the browser version standalone.
+
 ## Features
 
 - **Image Upload**: Drag-and-drop or click to upload images (PNG, JPG, JPEG, WEBP, BMP)
@@ -12,10 +31,29 @@ A web application for cropping and upscaling images to specific resolutions for 
 
 ## Tech Stack
 
+### Server Mode
 - **Backend**: Flask (Python)
-- **Image Processing**: Pillow
+- **Image Processing**: Pillow with Lanczos resampling
 - **Frontend**: HTML/CSS/JavaScript
 - **Crop Tool**: Cropper.js
+
+### Browser Mode
+- **Processing**: Canvas API with high-quality smoothing
+- **Frontend**: Pure HTML/CSS/JavaScript
+- **Crop Tool**: Cropper.js
+- **No backend required**
+
+## Mode Comparison
+
+| Feature | Server Mode | Browser Mode |
+|---------|-------------|--------------|
+| **Setup Required** | Flask + Python | None |
+| **Image Quality** | ⭐⭐⭐⭐⭐ Excellent (Lanczos) | ⭐⭐⭐⭐ Very Good (Canvas) |
+| **Processing Speed** | Fast | Fast |
+| **Privacy** | Local server | Never leaves browser |
+| **Offline Use** | No | Yes |
+| **Hosting** | Requires server | Static (free) |
+| **Best For** | Professional quality | Convenience & privacy |
 
 ## Installation
 
@@ -26,6 +64,8 @@ pip install -r requirements.txt
 
 ## Running the Application
 
+### Option 1: Run with Flask (Both Modes)
+
 1. **Start the Flask server**:
 ```bash
 python app.py
@@ -35,6 +75,20 @@ python app.py
 ```
 http://localhost:5000
 ```
+
+3. **Choose your mode**:
+   - Click "Server Mode" for Lanczos quality processing
+   - Click "Browser Mode" for client-side processing
+
+### Option 2: Browser Mode Only (No Installation)
+
+1. **Open directly in browser**:
+```bash
+# Open client-side/index.html in your browser
+# Or deploy to GitHub Pages/Netlify (see DEPLOYMENT.md)
+```
+
+2. **All processing happens locally** - no server required!
 
 ## Usage
 
@@ -48,17 +102,25 @@ http://localhost:5000
 
 ```
 image_crop_upscale/
-├── app.py                 # Flask backend
-├── requirements.txt       # Python dependencies
+├── app.py                      # Flask backend
+├── requirements.txt            # Python dependencies
 ├── templates/
-│   └── index.html        # Main HTML page
+│   ├── mode_selector.html     # Landing page (choose mode)
+│   └── index.html             # Server mode HTML
 ├── static/
 │   ├── css/
-│   │   └── style.css     # Styling
+│   │   └── style.css          # Server mode styles
 │   └── js/
-│       └── app.js        # Frontend logic
-├── uploads/              # Temporary uploaded images
-└── processed/            # Processed images ready for download
+│       └── app.js             # Server mode JavaScript
+├── client-side/               # Browser mode (standalone)
+│   ├── index.html             # Client-side HTML
+│   ├── css/
+│   │   └── style.css          # Client-side styles
+│   └── js/
+│       └── app-client.js      # Canvas-based processing
+├── tests/                     # Test suite
+├── uploads/                   # Temporary uploaded images (server mode)
+└── processed/                 # Processed images (server mode)
 ```
 
 ## How It Works

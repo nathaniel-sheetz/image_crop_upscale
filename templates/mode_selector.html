@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Frame TV Image Processor - Choose Mode</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            width: 100%;
+        }
+
+        header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+        }
+
+        header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .mode-selection {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 30px;
+        }
+
+        .mode-card {
+            background: white;
+            border-radius: 12px;
+            padding: 40px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            cursor: pointer;
+            text-decoration: none;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .mode-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .mode-icon {
+            font-size: 3rem;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .mode-card h2 {
+            color: #667eea;
+            font-size: 1.8rem;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .mode-card p {
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 20px;
+            flex-grow: 1;
+        }
+
+        .mode-features {
+            list-style: none;
+            margin-bottom: 25px;
+        }
+
+        .mode-features li {
+            padding: 8px 0;
+            color: #444;
+            display: flex;
+            align-items: center;
+        }
+
+        .mode-features li:before {
+            content: "✓";
+            color: #48bb78;
+            font-weight: bold;
+            margin-right: 10px;
+            font-size: 1.2rem;
+        }
+
+        .mode-button {
+            background: #667eea;
+            color: white;
+            padding: 15px 30px;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: 600;
+            font-size: 1.1rem;
+            transition: background 0.3s ease;
+        }
+
+        .mode-card:hover .mode-button {
+            background: #5568d3;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-top: 10px;
+            text-align: center;
+        }
+
+        .badge-quality {
+            background: #ffeaa7;
+            color: #d63031;
+        }
+
+        .badge-convenience {
+            background: #dfe6e9;
+            color: #2d3436;
+        }
+
+        @media (max-width: 768px) {
+            .mode-selection {
+                grid-template-columns: 1fr;
+            }
+
+            header h1 {
+                font-size: 2rem;
+            }
+
+            .mode-card {
+                padding: 30px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Frame TV Image Processor</h1>
+            <p>Choose your processing mode</p>
+        </header>
+
+        <div class="mode-selection">
+            <!-- Server Mode -->
+            <a href="/app" class="mode-card">
+                <div class="mode-icon">⚙️</div>
+                <h2>Server Mode</h2>
+                <div class="badge badge-quality">Best Quality</div>
+                <p>Uses Python Pillow with Lanczos resampling for the highest image quality. Perfect for professional results.</p>
+                <ul class="mode-features">
+                    <li>Highest image quality (Lanczos)</li>
+                    <li>Professional-grade upscaling</li>
+                    <li>Fast server processing</li>
+                    <li>Handles large files (16MB+)</li>
+                </ul>
+                <div class="mode-button">Launch Server Mode</div>
+            </a>
+
+            <!-- Browser Mode -->
+            <a href="/client" class="mode-card">
+                <div class="mode-icon">🌐</div>
+                <h2>Browser Mode</h2>
+                <div class="badge badge-convenience">No Setup Required</div>
+                <p>Process images entirely in your browser. No installation needed, works offline, and your images never leave your device.</p>
+                <ul class="mode-features">
+                    <li>Zero installation required</li>
+                    <li>Complete privacy (local only)</li>
+                    <li>Works offline</li>
+                    <li>Instant access</li>
+                </ul>
+                <div class="mode-button">Launch Browser Mode</div>
+            </a>
+        </div>
+    </div>
+</body>
+</html>
