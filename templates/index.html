@@ -53,6 +53,15 @@
             <section id="crop-section" class="card" style="display: none;">
                 <h2>Step 3: Crop Your Image</h2>
                 <p class="instruction">Drag and resize the crop box to select the portion of your image</p>
+                <div class="letterbox-toggle">
+                    <label class="toggle-label">
+                        <input type="checkbox" id="letterbox-toggle">
+                        <span class="toggle-text">Allow blank space (letterbox)</span>
+                    </label>
+                    <p class="toggle-hint" id="letterbox-hint" style="display: none;">
+                        Crop freely — black bars will be added to fill the frame.
+                    </p>
+                </div>
                 <div class="image-container">
                     <img id="crop-image" src="" alt="Image to crop">
                 </div>

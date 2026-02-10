@@ -11,7 +11,8 @@ let state = {
     selectedPresetData: null,
     cropper: null,
     processedImageBlob: null,
-    suggestedFilename: null
+    suggestedFilename: null,
+    letterboxEnabled: false
 };
 
 // Presets configuration
@@ -39,11 +40,14 @@ const downloadSection = document.getElementById('download-section');
 const downloadBtn = document.getElementById('download-btn');
 const downloadFilenameInput = document.getElementById('download-filename');
 const resetBtn = document.getElementById('reset-btn');
+const letterboxToggle = document.getElementById('letterbox-toggle');
+const letterboxHint = document.getElementById('letterbox-hint');
 
 // Initialize
 document.addEventListener('DOMContentLoaded', function() {
     initializeUpload();
     initializePresets();
+    initializeLetterbox();
     initializeProcess();
     initializeDownload();
 });
@@ -181,6 +185,21 @@ function initializePresets() {
     });
 }
 
+function initializeLetterbox() {
+    letterboxToggle.addEventListener('change', function() {
+        state.letterboxEnabled = this.checked;
+        letterboxHint.style.display = this.checked ? 'block' : 'none';
+
+        if (state.cropper) {
+            if (this.checked) {
+                state.cropper.setAspectRatio(NaN);
+            } else {
+                state.cropper.setAspectRatio(state.selectedPresetData.width / state.selectedPresetData.height);
+            }
+        }
+    });
+}
+
 function initializeCropper() {
     // Destroy existing cropper if any
     if (state.cropper) {
@@ -191,8 +210,8 @@ function initializeCropper() {
     cropSection.style.display = 'block';
     processSection.style.display = 'block';
 
-    // Calculate aspect ratio
-    const aspectRatio = state.selectedPresetData.width / state.selectedPresetData.height;
+    // Calculate aspect ratio (free if letterbox enabled)
+    const aspectRatio = state.letterboxEnabled ? NaN : (state.selectedPresetData.width / state.selectedPresetData.height);
 
     // Function to initialize the cropper
     function createCropper() {
@@ -240,7 +259,27 @@ function updateCropInfo(detail) {
     const x = Math.round(detail.x);
     const y = Math.round(detail.y);
 
-    cropInfo.textContent = `Crop area: ${width} × ${height}px at position (${x}, ${y})`;
+    let info = `Crop area: ${width} × ${height}px at position (${x}, ${y})`;
+
+    if (state.letterboxEnabled && state.selectedPresetData && width > 0 && height > 0) {
+        const targetW = state.selectedPresetData.width;
+        const targetH = state.selectedPresetData.height;
+        const scale = Math.min(targetW / width, targetH / height);
+        const scaledW = Math.round(width * scale);
+        const scaledH = Math.round(height * scale);
+        const barX = Math.round((targetW - scaledW) / 2);
+        const barY = Math.round((targetH - scaledH) / 2);
+
+        if (barX > 0) {
+            info += ` | Pillarbox: ${barX}px bars left & right`;
+        } else if (barY > 0) {
+            info += ` | Letterbox: ${barY}px bars top & bottom`;
+        } else {
+            info += ` | No bars (fits frame exactly)`;
+        }
+    }
+
+    cropInfo.textContent = info;
 }
 
 // Process image using Canvas API
@@ -273,18 +312,45 @@ function processImage() {
             ctx.imageSmoothingEnabled = true;
             ctx.imageSmoothingQuality = 'high';
 
-            // Draw the cropped and resized image
-            ctx.drawImage(
-                state.uploadedImage,
-                Math.round(cropData.x),
-                Math.round(cropData.y),
-                Math.round(cropData.width),
-                Math.round(cropData.height),
-                0,
-                0,
-                state.selectedPresetData.width,
-                state.selectedPresetData.height
-            );
+            if (state.letterboxEnabled) {
+                // Fill with black background
+                ctx.fillStyle = '#000000';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                // Scale to fit within target maintaining aspect ratio
+                const cropW = Math.round(cropData.width);
+                const cropH = Math.round(cropData.height);
+                const scale = Math.min(canvas.width / cropW, canvas.height / cropH);
+                const drawW = Math.round(cropW * scale);
+                const drawH = Math.round(cropH * scale);
+                const drawX = Math.round((canvas.width - drawW) / 2);
+                const drawY = Math.round((canvas.height - drawH) / 2);
+
+                ctx.drawImage(
+                    state.uploadedImage,
+                    Math.round(cropData.x),
+                    Math.round(cropData.y),
+                    cropW,
+                    cropH,
+                    drawX,
+                    drawY,
+                    drawW,
+                    drawH
+                );
+            } else {
+                // Draw the cropped and resized image (stretch to fill)
+                ctx.drawImage(
+                    state.uploadedImage,
+                    Math.round(cropData.x),
+                    Math.round(cropData.y),
+                    Math.round(cropData.width),
+                    Math.round(cropData.height),
+                    0,
+                    0,
+                    state.selectedPresetData.width,
+                    state.selectedPresetData.height
+                );
+            }
 
             // Convert canvas to blob
             canvas.toBlob(function(blob) {
@@ -357,6 +423,11 @@ function initializeDownload() {
     });
 
     resetBtn.addEventListener('click', function() {
+        // Destroy cropper before resetting state
+        if (state.cropper) {
+            state.cropper.destroy();
+        }
+
         // Reset state
         state = {
             uploadedFile: null,
@@ -367,13 +438,9 @@ function initializeDownload() {
             selectedPresetData: null,
             cropper: null,
             processedImageBlob: null,
-            suggestedFilename: null
+            suggestedFilename: null,
+            letterboxEnabled: false
         };
-
-        // Destroy cropper
-        if (state.cropper) {
-            state.cropper.destroy();
-        }
 
         // Reset UI
         fileInput.value = '';
@@ -385,6 +452,8 @@ function initializeDownload() {
         processBtn.disabled = false;
         processStatus.textContent = '';
         selectedPresetInfo.style.display = 'none';
+        letterboxToggle.checked = false;
+        letterboxHint.style.display = 'none';
 
         presetButtons.forEach(btn => btn.classList.remove('active'));
 

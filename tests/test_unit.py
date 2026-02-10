@@ -194,6 +194,153 @@ class TestCropAndUpscale:
                 os.unlink(output_path)
 
 
+class TestCropAndUpscaleLetterbox:
+    """Test letterbox functionality in crop_and_upscale"""
+
+    def test_portrait_image_pillarbox(self):
+        """Tall (portrait) image produces pillarbox bars on left and right"""
+        with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as input_file:
+            input_path = input_file.name
+            # Portrait image: 400x900
+            img = Image.new('RGB', (400, 900), color=(0, 128, 255))
+            img.save(input_path)
+
+        with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as output_file:
+            output_path = output_file.name
+
+        try:
+            crop_coords = {'x': 0, 'y': 0, 'width': 400, 'height': 900}
+            crop_and_upscale(input_path, output_path, crop_coords, 1920, 1080, letterbox=True)
+
+            with Image.open(output_path) as result:
+                assert result.size == (1920, 1080)
+                # Top-left corner should be black (pillarbox bar)
+                assert result.getpixel((0, 0)) == (0, 0, 0)
+                # Top-right corner should be black
+                assert result.getpixel((1919, 0)) == (0, 0, 0)
+                # Center should contain image content (not black)
+                center_pixel = result.getpixel((960, 540))
+                assert center_pixel != (0, 0, 0)
+        finally:
+            if os.path.exists(input_path):
+                os.unlink(input_path)
+            if os.path.exists(output_path):
+                os.unlink(output_path)
+
+    def test_wide_image_letterbox(self):
+        """Wide image produces letterbox bars on top and bottom"""
+        with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as input_file:
+            input_path = input_file.name
+            # Very wide image: 1200x200
+            img = Image.new('RGB', (1200, 200), color=(255, 128, 0))
+            img.save(input_path)
+
+        with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as output_file:
+            output_path = output_file.name
+
+        try:
+            crop_coords = {'x': 0, 'y': 0, 'width': 1200, 'height': 200}
+            crop_and_upscale(input_path, output_path, crop_coords, 1920, 1080, letterbox=True)
+
+            with Image.open(output_path) as result:
+                assert result.size == (1920, 1080)
+                # Top-left corner should be black (letterbox bar)
+                assert result.getpixel((0, 0)) == (0, 0, 0)
+                # Bottom-right corner should be black
+                assert result.getpixel((1919, 1079)) == (0, 0, 0)
+                # Center should contain image content
+                center_pixel = result.getpixel((960, 540))
+                assert center_pixel != (0, 0, 0)
+        finally:
+            if os.path.exists(input_path):
+                os.unlink(input_path)
+            if os.path.exists(output_path):
+                os.unlink(output_path)
+
+    def test_square_image_pillarbox(self):
+        """Square (1:1) image produces pillarbox bars"""
+        with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as input_file:
+            input_path = input_file.name
+            img = Image.new('RGB', (500, 500), color=(0, 255, 0))
+            img.save(input_path)
+
+        with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as output_file:
+            output_path = output_file.name
+
+        try:
+            crop_coords = {'x': 0, 'y': 0, 'width': 500, 'height': 500}
+            crop_and_upscale(input_path, output_path, crop_coords, 1920, 1080, letterbox=True)
+
+            with Image.open(output_path) as result:
+                assert result.size == (1920, 1080)
+                # Left edge should be black (pillarbox)
+                assert result.getpixel((0, 540)) == (0, 0, 0)
+                # Right edge should be black
+                assert result.getpixel((1919, 540)) == (0, 0, 0)
+                # Center should contain image content
+                center_pixel = result.getpixel((960, 540))
+                assert center_pixel != (0, 0, 0)
+        finally:
+            if os.path.exists(input_path):
+                os.unlink(input_path)
+            if os.path.exists(output_path):
+                os.unlink(output_path)
+
+    def test_already_16_9_no_bars(self):
+        """An already-16:9 image should fill frame completely with no bars"""
+        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as input_file:
+            input_path = input_file.name
+            # Exactly 16:9
+            img = Image.new('RGB', (1600, 900), color=(200, 100, 50))
+            img.save(input_path, format='PNG')
+
+        with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as output_file:
+            output_path = output_file.name
+
+        try:
+            crop_coords = {'x': 0, 'y': 0, 'width': 1600, 'height': 900}
+            crop_and_upscale(input_path, output_path, crop_coords, 1920, 1080, letterbox=True)
+
+            with Image.open(output_path) as result:
+                assert result.size == (1920, 1080)
+                # All corners should contain image content (no black bars)
+                for pixel_pos in [(0, 0), (1919, 0), (0, 1079), (1919, 1079)]:
+                    pixel = result.getpixel(pixel_pos)
+                    assert pixel != (0, 0, 0), f"Corner {pixel_pos} should not be black"
+        finally:
+            if os.path.exists(input_path):
+                os.unlink(input_path)
+            if os.path.exists(output_path):
+                os.unlink(output_path)
+
+    def test_letterbox_false_backward_compat(self):
+        """letterbox=False preserves original stretch behavior"""
+        with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as input_file:
+            input_path = input_file.name
+            # Portrait: will be stretched if letterbox=False
+            img = Image.new('RGB', (400, 900), color=(100, 200, 50))
+            img.save(input_path)
+
+        with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as output_file:
+            output_path = output_file.name
+
+        try:
+            crop_coords = {'x': 0, 'y': 0, 'width': 400, 'height': 900}
+            crop_and_upscale(input_path, output_path, crop_coords, 1920, 1080, letterbox=False)
+
+            with Image.open(output_path) as result:
+                assert result.size == (1920, 1080)
+                # All corners should contain image content (stretched to fill)
+                for pixel_pos in [(0, 0), (1919, 0), (0, 1079), (1919, 1079)]:
+                    pixel = result.getpixel(pixel_pos)
+                    assert pixel != (0, 0, 0), f"Corner {pixel_pos} should not be black with letterbox=False"
+        finally:
+            if os.path.exists(input_path):
+                os.unlink(input_path)
+            if os.path.exists(output_path):
+                os.unlink(output_path)
+
+
 class TestPresets:
     """Test preset configurations"""
 

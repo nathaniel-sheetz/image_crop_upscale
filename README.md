@@ -26,6 +26,7 @@ This application offers two processing modes to suit your needs:
 - **Image Upload**: Drag-and-drop or click to upload images (PNG, JPG, JPEG, WEBP, BMP)
 - **Preset Resolutions**: Quick selection for 4K (3840×2160) and Full HD (1920×1080)
 - **Interactive Cropping**: Drag and resize crop box with locked aspect ratio
+- **Letterbox / Pillarbox Mode**: Toggle free-aspect cropping with automatic black bars to fill the frame
 - **Smart Upscaling**: High-quality Lanczos resampling for crisp results
 - **Instant Download**: Process and download your optimized image
 
@@ -95,6 +96,7 @@ http://localhost:5000
 1. **Upload an Image**: Click or drag-and-drop your image
 2. **Select Resolution**: Choose 4K or Full HD preset
 3. **Crop**: Drag and resize the crop box to select your desired area
+   - **Optional**: Enable "Allow blank space (letterbox)" to crop freely without the 16:9 constraint. Black bars will be added to fill the frame while preserving your crop's aspect ratio.
 4. **Process**: Click "Process & Upscale Image"
 5. **Download**: Save your optimized image
 
@@ -127,12 +129,14 @@ image_crop_upscale/
 
 1. **Upload**: User uploads an image via drag-and-drop or file picker
 2. **Preview**: Image is displayed with Cropper.js overlay
-3. **Select**: User chooses target resolution (locks aspect ratio)
+3. **Select**: User chooses target resolution (locks aspect ratio to 16:9 by default)
 4. **Crop**: User positions and sizes the crop box
+   - With letterbox mode enabled, the aspect ratio constraint is removed. The crop info displays the computed bar sizes in real-time (e.g., "Pillarbox: 142px bars left & right").
 5. **Process**:
-   - Crop coordinates are sent to Flask backend
+   - Crop coordinates are sent to Flask backend (or processed locally in browser mode)
    - Pillow crops the image to selected area
-   - Image is upscaled to target resolution using Lanczos resampling
+   - **Standard mode**: Image is stretched to fill the target resolution
+   - **Letterbox mode**: Image is scaled to fit within the target (maintaining its aspect ratio) and centered on a black canvas, producing equal bars on each side
    - High-quality JPEG is saved (quality=95)
 6. **Download**: Processed image is served for download
 
@@ -226,3 +230,4 @@ The issue persists despite these attempts. The root cause may be related to how 
 ## License
 
 Free to use and modify for personal projects.
+

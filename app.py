@@ -26,7 +26,7 @@ def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
 
-def crop_and_upscale(input_path, output_path, crop_coords, target_width, target_height):
+def crop_and_upscale(input_path, output_path, crop_coords, target_width, target_height, letterbox=False):
     """
     Crop and upscale image to target resolution
 
@@ -36,6 +36,8 @@ def crop_and_upscale(input_path, output_path, crop_coords, target_width, target_
         crop_coords: Dict with x, y, width, height (in pixels)
         target_width: Target output width
         target_height: Target output height
+        letterbox: If True, fit image within target maintaining aspect ratio
+                   and fill remaining space with black bars
     """
     with Image.open(input_path) as img:
         # Crop the image
@@ -46,11 +48,27 @@ def crop_and_upscale(input_path, output_path, crop_coords, target_width, target_
 
         cropped = img.crop((left, top, right, bottom))
 
-        # Resize to target resolution using high-quality Lanczos resampling
-        resized = cropped.resize((target_width, target_height), Image.Resampling.LANCZOS)
+        if letterbox:
+            # Scale to fit within target while maintaining aspect ratio
+            crop_w, crop_h = cropped.size
+            scale = min(target_width / crop_w, target_height / crop_h)
+            new_w = int(crop_w * scale)
+            new_h = int(crop_h * scale)
+            resized = cropped.resize((new_w, new_h), Image.Resampling.LANCZOS)
 
-        # Save with high quality
-        resized.save(output_path, quality=95, optimize=True)
+            # Center on a black canvas
+            canvas = Image.new('RGB', (target_width, target_height), (0, 0, 0))
+            paste_x = (target_width - new_w) // 2
+            paste_y = (target_height - new_h) // 2
+            canvas.paste(resized, (paste_x, paste_y))
+
+            canvas.save(output_path, quality=95, optimize=True)
+        else:
+            # Resize to target resolution using high-quality Lanczos resampling
+            resized = cropped.resize((target_width, target_height), Image.Resampling.LANCZOS)
+
+            # Save with high quality
+            resized.save(output_path, quality=95, optimize=True)
 
     return output_path
 
@@ -120,6 +138,7 @@ def process_image():
     original_filename = data.get('original_filename', 'image.jpg')
     preset = data.get('preset', '4k')
     crop_coords = data.get('crop', {})
+    letterbox = data.get('letterbox', False)
 
     if preset not in PRESETS:
         return jsonify({'error': 'Invalid preset'}), 400
@@ -146,7 +165,8 @@ def process_image():
             output_path,
             crop_coords,
             target_res['width'],
-            target_res['height']
+            target_res['height'],
+            letterbox=letterbox
         )
 
         return jsonify({

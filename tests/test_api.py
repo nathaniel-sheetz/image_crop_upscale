@@ -264,6 +264,81 @@ class TestProcessEndpoint:
             assert img.size == (3840, 2160)
 
 
+class TestProcessLetterbox:
+    """Test the /process endpoint with letterbox flag"""
+
+    def test_process_with_letterbox(self, client, sample_image, app):
+        """Test processing with letterbox=true produces correct output dimensions"""
+        # Upload image
+        data = {
+            'file': (sample_image, 'test.jpg', 'image/jpeg')
+        }
+        upload_response = client.post('/upload', data=data, content_type='multipart/form-data')
+        upload_data = upload_response.get_json()
+        filename = upload_data['filename']
+
+        # Process with letterbox enabled and a non-16:9 crop
+        process_data = {
+            'filename': filename,
+            'preset': '4k',
+            'crop': {
+                'x': 0,
+                'y': 0,
+                'width': 600,
+                'height': 600
+            },
+            'letterbox': True
+        }
+        response = client.post('/process',
+                               data=json.dumps(process_data),
+                               content_type='application/json')
+
+        assert response.status_code == 200
+        json_data = response.get_json()
+        assert json_data['success'] == True
+
+        # Verify the processed file has correct dimensions
+        processed_path = os.path.join(app.config['PROCESSED_FOLDER'], json_data['filename'])
+        with Image.open(processed_path) as img:
+            assert img.size == (3840, 2160)
+            # Square crop letterboxed to 16:9 should have black bars on sides
+            assert img.getpixel((0, 0)) == (0, 0, 0)
+
+    def test_process_without_letterbox_default(self, client, sample_image, app):
+        """Test that omitting letterbox flag preserves stretch behavior"""
+        data = {
+            'file': (sample_image, 'test.jpg', 'image/jpeg')
+        }
+        upload_response = client.post('/upload', data=data, content_type='multipart/form-data')
+        upload_data = upload_response.get_json()
+        filename = upload_data['filename']
+
+        process_data = {
+            'filename': filename,
+            'preset': 'fhd',
+            'crop': {
+                'x': 0,
+                'y': 0,
+                'width': 600,
+                'height': 600
+            }
+        }
+        response = client.post('/process',
+                               data=json.dumps(process_data),
+                               content_type='application/json')
+
+        assert response.status_code == 200
+        json_data = response.get_json()
+        assert json_data['success'] == True
+
+        processed_path = os.path.join(app.config['PROCESSED_FOLDER'], json_data['filename'])
+        with Image.open(processed_path) as img:
+            assert img.size == (1920, 1080)
+            # Without letterbox, corners should have image content (stretched)
+            pixel = img.getpixel((0, 0))
+            assert pixel != (0, 0, 0)
+
+
 class TestDownloadEndpoint:
     """Test the /download endpoint"""
 

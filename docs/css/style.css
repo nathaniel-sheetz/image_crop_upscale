@@ -154,6 +154,33 @@ header p {
     text-align: center;
 }
 
+/* Letterbox Toggle */
+.letterbox-toggle {
+    margin-bottom: 15px;
+}
+
+.toggle-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 1rem;
+    color: #333;
+}
+
+.toggle-text {
+    font-weight: 500;
+}
+
+.toggle-hint {
+    background: #f0f2ff;
+    padding: 10px 15px;
+    border-radius: 6px;
+    color: #667eea;
+    font-size: 0.9rem;
+    margin-top: 8px;
+}
+
 /* Image Container */
 .image-container {
     max-width: 100%;
