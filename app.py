@@ -72,6 +72,46 @@ def crop_and_upscale(input_path, output_path, crop_coords, target_width, target_
 
     return output_path
 
+def crop_and_combine_diptych(input_path1, input_path2, output_path, crop1, crop2, target_width, target_height):
+    """
+    Crop two images and combine them side-by-side on a single canvas.
+
+    The layout uses zero-waste math: image 1 is scaled to target height,
+    image 2 fills the remaining width, with only a thin gap between them.
+    """
+    gap = round(target_width * 0.01)
+
+    with Image.open(input_path1) as img1:
+        left1 = int(crop1['x'])
+        top1 = int(crop1['y'])
+        right1 = int(crop1['x'] + crop1['width'])
+        bottom1 = int(crop1['y'] + crop1['height'])
+        cropped1 = img1.crop((left1, top1, right1, bottom1))
+
+        # Scale image 1 to target height, preserving aspect ratio
+        sw1 = round(cropped1.width * target_height / cropped1.height)
+        resized1 = cropped1.resize((sw1, target_height), Image.Resampling.LANCZOS)
+
+    sw2 = target_width - gap - sw1
+
+    with Image.open(input_path2) as img2:
+        left2 = int(crop2['x'])
+        top2 = int(crop2['y'])
+        right2 = int(crop2['x'] + crop2['width'])
+        bottom2 = int(crop2['y'] + crop2['height'])
+        cropped2 = img2.crop((left2, top2, right2, bottom2))
+
+        resized2 = cropped2.resize((sw2, target_height), Image.Resampling.LANCZOS)
+
+    # Create black canvas and paste both images
+    canvas = Image.new('RGB', (target_width, target_height), (0, 0, 0))
+    canvas.paste(resized1, (0, 0))
+    canvas.paste(resized2, (sw1 + gap, 0))
+
+    canvas.save(output_path, quality=95, optimize=True)
+
+    return output_path
+
 @app.route('/')
 def mode_selector():
     """Landing page to choose processing mode"""
@@ -167,6 +207,65 @@ def process_image():
             target_res['width'],
             target_res['height'],
             letterbox=letterbox
+        )
+
+        return jsonify({
+            'success': True,
+            'filename': output_filename,
+            'suggested_filename': suggested_filename,
+            'download_url': f'/download/{output_filename}'
+        })
+
+    except Exception as e:
+        return jsonify({'error': f'Processing failed: {str(e)}'}), 500
+
+@app.route('/process-diptych', methods=['POST'])
+def process_diptych():
+    """Process two images into a side-by-side diptych"""
+    data = request.json
+
+    if not data or 'filename1' not in data or 'filename2' not in data:
+        return jsonify({'error': 'Both filename1 and filename2 are required'}), 400
+
+    filename1 = data['filename1']
+    filename2 = data['filename2']
+    original_filename1 = data.get('original_filename1', 'image1.jpg')
+    original_filename2 = data.get('original_filename2', 'image2.jpg')
+    preset = data.get('preset', '4k')
+    crop1 = data.get('crop1', {})
+    crop2 = data.get('crop2', {})
+
+    if preset not in PRESETS:
+        return jsonify({'error': 'Invalid preset'}), 400
+
+    input_path1 = os.path.join(app.config['UPLOAD_FOLDER'], filename1)
+    input_path2 = os.path.join(app.config['UPLOAD_FOLDER'], filename2)
+
+    if not os.path.exists(input_path1):
+        return jsonify({'error': 'File 1 not found'}), 404
+
+    if not os.path.exists(input_path2):
+        return jsonify({'error': 'File 2 not found'}), 404
+
+    # Generate output filename
+    name1 = os.path.splitext(original_filename1)[0]
+    name2 = os.path.splitext(original_filename2)[0]
+    preset_suffix = '_4k' if preset == '4k' else '_fhd'
+    suggested_filename = f"{name1}_{name2}_pair{preset_suffix}.jpg"
+
+    output_filename = f"processed_{uuid.uuid4()}.jpg"
+    output_path = os.path.join(app.config['PROCESSED_FOLDER'], output_filename)
+
+    try:
+        target_res = PRESETS[preset]
+        crop_and_combine_diptych(
+            input_path1,
+            input_path2,
+            output_path,
+            crop1,
+            crop2,
+            target_res['width'],
+            target_res['height']
         )
 
         return jsonify({

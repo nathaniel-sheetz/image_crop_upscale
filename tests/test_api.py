@@ -377,6 +377,136 @@ class TestDownloadEndpoint:
         assert 'error' in json_data
 
 
+class TestProcessDiptychEndpoint:
+    """Test the /process-diptych endpoint"""
+
+    def _upload_image(self, client, img_bytes, filename):
+        """Helper to upload an image and return the server filename"""
+        data = {'file': (img_bytes, filename, 'image/jpeg')}
+        response = client.post('/upload', data=data, content_type='multipart/form-data')
+        return response.get_json()
+
+    def test_diptych_success_4k(self, client, sample_image_portrait, sample_image_portrait_2, app):
+        """Test successful diptych processing at 4K"""
+        upload1 = self._upload_image(client, sample_image_portrait, 'portrait1.jpg')
+        upload2 = self._upload_image(client, sample_image_portrait_2, 'portrait2.jpg')
+
+        process_data = {
+            'filename1': upload1['filename'],
+            'filename2': upload2['filename'],
+            'original_filename1': upload1['original_filename'],
+            'original_filename2': upload2['original_filename'],
+            'preset': '4k',
+            'crop1': {'x': 0, 'y': 0, 'width': 400, 'height': 900},
+            'crop2': {'x': 0, 'y': 0, 'width': 500, 'height': 800}
+        }
+        response = client.post('/process-diptych',
+                               data=json.dumps(process_data),
+                               content_type='application/json')
+
+        assert response.status_code == 200
+        json_data = response.get_json()
+        assert json_data['success'] == True
+        assert 'filename' in json_data
+        assert 'download_url' in json_data
+        assert 'suggested_filename' in json_data
+
+        # Verify output dimensions
+        processed_path = os.path.join(app.config['PROCESSED_FOLDER'], json_data['filename'])
+        with Image.open(processed_path) as img:
+            assert img.size == (3840, 2160)
+
+    def test_diptych_success_fhd(self, client, sample_image_portrait, sample_image_portrait_2, app):
+        """Test successful diptych processing at FHD"""
+        upload1 = self._upload_image(client, sample_image_portrait, 'portrait1.jpg')
+        upload2 = self._upload_image(client, sample_image_portrait_2, 'portrait2.jpg')
+
+        process_data = {
+            'filename1': upload1['filename'],
+            'filename2': upload2['filename'],
+            'original_filename1': upload1['original_filename'],
+            'original_filename2': upload2['original_filename'],
+            'preset': 'fhd',
+            'crop1': {'x': 0, 'y': 0, 'width': 400, 'height': 900},
+            'crop2': {'x': 0, 'y': 0, 'width': 500, 'height': 800}
+        }
+        response = client.post('/process-diptych',
+                               data=json.dumps(process_data),
+                               content_type='application/json')
+
+        assert response.status_code == 200
+        json_data = response.get_json()
+        assert json_data['success'] == True
+
+        processed_path = os.path.join(app.config['PROCESSED_FOLDER'], json_data['filename'])
+        with Image.open(processed_path) as img:
+            assert img.size == (1920, 1080)
+
+    def test_diptych_missing_filename(self, client):
+        """Test diptych with missing filenames returns 400"""
+        process_data = {
+            'preset': '4k',
+            'crop1': {'x': 0, 'y': 0, 'width': 400, 'height': 900},
+            'crop2': {'x': 0, 'y': 0, 'width': 500, 'height': 800}
+        }
+        response = client.post('/process-diptych',
+                               data=json.dumps(process_data),
+                               content_type='application/json')
+        assert response.status_code == 400
+
+    def test_diptych_invalid_preset(self, client, sample_image_portrait, sample_image_portrait_2):
+        """Test diptych with invalid preset returns 400"""
+        upload1 = self._upload_image(client, sample_image_portrait, 'portrait1.jpg')
+        upload2 = self._upload_image(client, sample_image_portrait_2, 'portrait2.jpg')
+
+        process_data = {
+            'filename1': upload1['filename'],
+            'filename2': upload2['filename'],
+            'preset': 'invalid',
+            'crop1': {'x': 0, 'y': 0, 'width': 400, 'height': 900},
+            'crop2': {'x': 0, 'y': 0, 'width': 500, 'height': 800}
+        }
+        response = client.post('/process-diptych',
+                               data=json.dumps(process_data),
+                               content_type='application/json')
+        assert response.status_code == 400
+
+    def test_diptych_file_not_found(self, client):
+        """Test diptych with non-existent files returns 404"""
+        process_data = {
+            'filename1': 'nonexistent1.jpg',
+            'filename2': 'nonexistent2.jpg',
+            'preset': '4k',
+            'crop1': {'x': 0, 'y': 0, 'width': 400, 'height': 900},
+            'crop2': {'x': 0, 'y': 0, 'width': 500, 'height': 800}
+        }
+        response = client.post('/process-diptych',
+                               data=json.dumps(process_data),
+                               content_type='application/json')
+        assert response.status_code == 404
+
+    def test_diptych_suggested_filename_format(self, client, sample_image_portrait, sample_image_portrait_2):
+        """Test that suggested filename follows expected format"""
+        upload1 = self._upload_image(client, sample_image_portrait, 'portrait1.jpg')
+        upload2 = self._upload_image(client, sample_image_portrait_2, 'portrait2.jpg')
+
+        process_data = {
+            'filename1': upload1['filename'],
+            'filename2': upload2['filename'],
+            'original_filename1': 'portrait1.jpg',
+            'original_filename2': 'portrait2.jpg',
+            'preset': '4k',
+            'crop1': {'x': 0, 'y': 0, 'width': 400, 'height': 900},
+            'crop2': {'x': 0, 'y': 0, 'width': 500, 'height': 800}
+        }
+        response = client.post('/process-diptych',
+                               data=json.dumps(process_data),
+                               content_type='application/json')
+
+        json_data = response.get_json()
+        assert json_data['suggested_filename'] == 'portrait1_portrait2_pair_4k.jpg'
+
+
 class TestUploadedFileEndpoint:
     """Test the /uploads/<filename> endpoint"""
 

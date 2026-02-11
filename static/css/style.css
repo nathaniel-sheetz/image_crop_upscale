@@ -320,6 +320,56 @@ header p {
     text-align: center;
 }
 
+/* Diptych Controls */
+#diptych-controls {
+    text-align: center;
+    padding-top: 10px;
+    border-top: 1px solid #e0e0e0;
+}
+
+#diptych-controls .btn {
+    margin-top: 10px;
+}
+
+.warning-text {
+    color: #d69e2e;
+    font-size: 0.9rem;
+    margin-top: 8px;
+    padding: 8px 12px;
+    background: #fefce8;
+    border-radius: 6px;
+    border-left: 3px solid #d69e2e;
+}
+
+#upload-area-2 {
+    border: 3px dashed #667eea;
+    border-radius: 8px;
+    padding: 60px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+#upload-area-2:hover {
+    border-color: #764ba2;
+    background: #f8f9ff;
+}
+
+#upload-area-2.dragover {
+    border-color: #764ba2;
+    background: #f0f2ff;
+}
+
+#upload-status-2 {
+    margin-top: 15px;
+    text-align: center;
+}
+
+#crop-image-2 {
+    max-width: 100%;
+    display: block;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     header h1 {

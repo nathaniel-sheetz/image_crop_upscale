@@ -2,7 +2,7 @@ import pytest
 import os
 from PIL import Image
 import tempfile
-from app import allowed_file, crop_and_upscale, PRESETS
+from app import allowed_file, crop_and_upscale, crop_and_combine_diptych, PRESETS
 
 class TestAllowedFile:
     """Test file validation"""
@@ -364,3 +364,156 @@ class TestPresets:
         for preset_key, preset in PRESETS.items():
             aspect_ratio = preset['width'] / preset['height']
             assert abs(aspect_ratio - 16/9) < 0.01, f"{preset_key} should be 16:9"
+
+
+class TestCropAndCombineDiptych:
+    """Test diptych (side-by-side) image combining"""
+
+    def _create_temp_image(self, width, height, color):
+        """Helper to create a temporary image file"""
+        f = tempfile.NamedTemporaryFile(suffix='.jpg', delete=False)
+        img = Image.new('RGB', (width, height), color=color)
+        img.save(f.name)
+        f.close()
+        return f.name
+
+    def test_diptych_output_exact_target_size_4k(self):
+        """Two portraits combined should produce exact target dimensions"""
+        input1 = self._create_temp_image(400, 900, 'red')
+        input2 = self._create_temp_image(500, 800, 'blue')
+        output = tempfile.NamedTemporaryFile(suffix='.jpg', delete=False).name
+
+        try:
+            crop1 = {'x': 0, 'y': 0, 'width': 400, 'height': 900}
+            crop2 = {'x': 0, 'y': 0, 'width': 500, 'height': 800}
+            crop_and_combine_diptych(input1, input2, output, crop1, crop2, 3840, 2160)
+
+            with Image.open(output) as result:
+                assert result.size == (3840, 2160)
+        finally:
+            for p in [input1, input2, output]:
+                if os.path.exists(p):
+                    os.unlink(p)
+
+    def test_diptych_output_exact_target_size_fhd(self):
+        """Two portraits combined at FHD resolution"""
+        input1 = self._create_temp_image(400, 900, 'green')
+        input2 = self._create_temp_image(500, 800, 'yellow')
+        output = tempfile.NamedTemporaryFile(suffix='.jpg', delete=False).name
+
+        try:
+            crop1 = {'x': 0, 'y': 0, 'width': 400, 'height': 900}
+            crop2 = {'x': 0, 'y': 0, 'width': 500, 'height': 800}
+            crop_and_combine_diptych(input1, input2, output, crop1, crop2, 1920, 1080)
+
+            with Image.open(output) as result:
+                assert result.size == (1920, 1080)
+        finally:
+            for p in [input1, input2, output]:
+                if os.path.exists(p):
+                    os.unlink(p)
+
+    def test_diptych_gap_is_black(self):
+        """The gap between images should be black"""
+        input1 = self._create_temp_image(400, 900, (255, 0, 0))
+        input2 = self._create_temp_image(500, 800, (0, 0, 255))
+        output = tempfile.NamedTemporaryFile(suffix='.jpg', delete=False).name
+
+        try:
+            target_w, target_h = 1920, 1080
+            crop1 = {'x': 0, 'y': 0, 'width': 400, 'height': 900}
+            crop2 = {'x': 0, 'y': 0, 'width': 500, 'height': 800}
+            crop_and_combine_diptych(input1, input2, output, crop1, crop2, target_w, target_h)
+
+            gap = round(target_w * 0.01)
+            sw1 = round(400 * target_h / 900)
+
+            with Image.open(output) as result:
+                # Check gap column at the midpoint height
+                gap_x = sw1 + gap // 2
+                pixel = result.getpixel((gap_x, target_h // 2))
+                assert pixel == (0, 0, 0), f"Gap pixel should be black, got {pixel}"
+        finally:
+            for p in [input1, input2, output]:
+                if os.path.exists(p):
+                    os.unlink(p)
+
+    def test_diptych_layout_math_exact(self):
+        """Verify sw1 + gap + sw2 = targetW exactly"""
+        input1 = self._create_temp_image(400, 900, 'red')
+        input2 = self._create_temp_image(500, 800, 'blue')
+        output = tempfile.NamedTemporaryFile(suffix='.jpg', delete=False).name
+
+        try:
+            target_w, target_h = 3840, 2160
+            crop1 = {'x': 0, 'y': 0, 'width': 400, 'height': 900}
+            crop2 = {'x': 0, 'y': 0, 'width': 500, 'height': 800}
+
+            gap = round(target_w * 0.01)
+            sw1 = round(400 * target_h / 900)
+            sw2 = target_w - gap - sw1
+
+            # Verify the math
+            assert sw1 + gap + sw2 == target_w
+
+            crop_and_combine_diptych(input1, input2, output, crop1, crop2, target_w, target_h)
+
+            with Image.open(output) as result:
+                assert result.size == (target_w, target_h)
+        finally:
+            for p in [input1, input2, output]:
+                if os.path.exists(p):
+                    os.unlink(p)
+
+    def test_diptych_gap_width_approximately_one_percent(self):
+        """Gap should be approximately 1% of target width"""
+        for target_w in [3840, 1920]:
+            gap = round(target_w * 0.01)
+            assert abs(gap / target_w - 0.01) < 0.005
+
+    def test_diptych_image_content_fills_non_gap(self):
+        """Both image areas should contain non-black content"""
+        input1 = self._create_temp_image(400, 900, (200, 100, 50))
+        input2 = self._create_temp_image(500, 800, (50, 100, 200))
+        output = tempfile.NamedTemporaryFile(suffix='.jpg', delete=False).name
+
+        try:
+            target_w, target_h = 1920, 1080
+            crop1 = {'x': 0, 'y': 0, 'width': 400, 'height': 900}
+            crop2 = {'x': 0, 'y': 0, 'width': 500, 'height': 800}
+            crop_and_combine_diptych(input1, input2, output, crop1, crop2, target_w, target_h)
+
+            gap = round(target_w * 0.01)
+            sw1 = round(400 * target_h / 900)
+
+            with Image.open(output) as result:
+                # Image 1 area center should not be black
+                pixel1 = result.getpixel((sw1 // 2, target_h // 2))
+                assert pixel1 != (0, 0, 0), "Image 1 area should have content"
+
+                # Image 2 area center should not be black
+                img2_start = sw1 + gap
+                pixel2 = result.getpixel((img2_start + (target_w - img2_start) // 2, target_h // 2))
+                assert pixel2 != (0, 0, 0), "Image 2 area should have content"
+        finally:
+            for p in [input1, input2, output]:
+                if os.path.exists(p):
+                    os.unlink(p)
+
+    def test_diptych_mismatched_aspect_ratios(self):
+        """Different aspect ratio portraits should still produce correct output"""
+        input1 = self._create_temp_image(300, 1000, 'red')
+        input2 = self._create_temp_image(600, 700, 'blue')
+        output = tempfile.NamedTemporaryFile(suffix='.jpg', delete=False).name
+
+        try:
+            crop1 = {'x': 0, 'y': 0, 'width': 300, 'height': 1000}
+            crop2 = {'x': 0, 'y': 0, 'width': 600, 'height': 700}
+            crop_and_combine_diptych(input1, input2, output, crop1, crop2, 3840, 2160)
+
+            with Image.open(output) as result:
+                assert result.size == (3840, 2160)
+        finally:
+            for p in [input1, input2, output]:
+                if os.path.exists(p):
+                    os.unlink(p)

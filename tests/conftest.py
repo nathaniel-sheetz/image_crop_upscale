@@ -65,6 +65,24 @@ def sample_image_small():
     img_bytes.seek(0)
     return img_bytes
 
+@pytest.fixture
+def sample_image_portrait():
+    """Generate a portrait test image (RGB, 400x900)"""
+    img = Image.new('RGB', (400, 900), color='cyan')
+    img_bytes = io.BytesIO()
+    img.save(img_bytes, format='JPEG')
+    img_bytes.seek(0)
+    return img_bytes
+
+@pytest.fixture
+def sample_image_portrait_2():
+    """Generate a second portrait test image (RGB, 500x800)"""
+    img = Image.new('RGB', (500, 800), color='magenta')
+    img_bytes = io.BytesIO()
+    img.save(img_bytes, format='JPEG')
+    img_bytes.seek(0)
+    return img_bytes
+
 def cleanup_directory(directory):
     """Remove all files in a directory"""
     if os.path.exists(directory):

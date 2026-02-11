@@ -66,6 +66,40 @@
                     <img id="crop-image" src="" alt="Image to crop">
                 </div>
                 <div class="crop-info" id="crop-info"></div>
+                <div id="diptych-controls" style="display: none;">
+                    <button id="diptych-btn" class="btn btn-secondary">
+                        Add second image (side-by-side pair)
+                    </button>
+                </div>
+            </section>
+
+            <!-- Diptych Upload Section (Step 3b) -->
+            <section id="diptych-upload-section" class="card" style="display: none;">
+                <h2>Step 3b: Upload Second Image</h2>
+                <div class="upload-area" id="upload-area-2">
+                    <input type="file" id="file-input-2" accept="image/*" hidden>
+                    <div class="upload-prompt">
+                        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="17 8 12 3 7 8"></polyline>
+                            <line x1="12" y1="3" x2="12" y2="15"></line>
+                        </svg>
+                        <p>Click to upload or drag and drop second image</p>
+                        <span class="file-types">PNG, JPG, JPEG, WEBP, BMP (max 16MB)</span>
+                    </div>
+                </div>
+                <div id="upload-status-2"></div>
+            </section>
+
+            <!-- Diptych Crop Section (Step 3c) -->
+            <section id="diptych-crop-section" class="card" style="display: none;">
+                <h2>Step 3c: Crop Second Image</h2>
+                <p class="instruction">Aspect ratio is locked to fit alongside image 1</p>
+                <div class="image-container">
+                    <img id="crop-image-2" src="" alt="Second image to crop">
+                </div>
+                <div class="crop-info" id="crop-info-2"></div>
+                <div id="diptych-crop-warning" class="warning-text" style="display: none;"></div>
             </section>
 
             <!-- Process Section -->

@@ -135,6 +135,57 @@ class TestEndToEndWorkflow:
                 assert img.size == (1920, 1080)
 
 
+class TestDiptychEndToEnd:
+    """End-to-end tests for diptych workflow"""
+
+    def test_diptych_full_workflow(self, client, sample_image_portrait, sample_image_portrait_2, app):
+        """Test complete diptych workflow: upload 1 -> upload 2 -> process -> download"""
+        # Step 1: Upload image 1
+        upload1_response = client.post('/upload',
+                                       data={'file': (sample_image_portrait, 'img1.jpg', 'image/jpeg')},
+                                       content_type='multipart/form-data')
+        assert upload1_response.status_code == 200
+        upload1 = upload1_response.get_json()
+        assert upload1['success'] == True
+
+        # Step 2: Upload image 2
+        upload2_response = client.post('/upload',
+                                       data={'file': (sample_image_portrait_2, 'img2.jpg', 'image/jpeg')},
+                                       content_type='multipart/form-data')
+        assert upload2_response.status_code == 200
+        upload2 = upload2_response.get_json()
+        assert upload2['success'] == True
+
+        # Step 3: Process diptych
+        process_data = {
+            'filename1': upload1['filename'],
+            'filename2': upload2['filename'],
+            'original_filename1': upload1['original_filename'],
+            'original_filename2': upload2['original_filename'],
+            'preset': '4k',
+            'crop1': {'x': 0, 'y': 0, 'width': upload1['width'], 'height': upload1['height']},
+            'crop2': {'x': 0, 'y': 0, 'width': upload2['width'], 'height': upload2['height']}
+        }
+        process_response = client.post('/process-diptych',
+                                       data=json.dumps(process_data),
+                                       content_type='application/json')
+        assert process_response.status_code == 200
+        process_json = process_response.get_json()
+        assert process_json['success'] == True
+
+        # Step 4: Verify processed file
+        processed_path = os.path.join(app.config['PROCESSED_FOLDER'], process_json['filename'])
+        assert os.path.exists(processed_path)
+        with Image.open(processed_path) as img:
+            assert img.size == (3840, 2160)
+            assert img.mode == 'RGB'
+
+        # Step 5: Download
+        download_response = client.get(f'/download/{process_json["filename"]}')
+        assert download_response.status_code == 200
+        assert len(download_response.data) > 0
+
+
 class TestRealImageProcessing:
     """Tests using real images from test_images folder"""
 

@@ -12,7 +12,14 @@ let state = {
     cropper: null,
     processedImageBlob: null,
     suggestedFilename: null,
-    letterboxEnabled: false
+    letterboxEnabled: false,
+    // Diptych state
+    diptychMode: false,
+    image2File: null,
+    image2Image: null,
+    image2ImageUrl: null,
+    image2OriginalFilename: null,
+    cropper2: null
 };
 
 // Presets configuration
@@ -43,6 +50,18 @@ const resetBtn = document.getElementById('reset-btn');
 const letterboxToggle = document.getElementById('letterbox-toggle');
 const letterboxHint = document.getElementById('letterbox-hint');
 
+// Diptych DOM Elements
+const diptychControls = document.getElementById('diptych-controls');
+const diptychBtn = document.getElementById('diptych-btn');
+const diptychUploadSection = document.getElementById('diptych-upload-section');
+const uploadArea2 = document.getElementById('upload-area-2');
+const fileInput2 = document.getElementById('file-input-2');
+const uploadStatus2 = document.getElementById('upload-status-2');
+const diptychCropSection = document.getElementById('diptych-crop-section');
+const cropImage2 = document.getElementById('crop-image-2');
+const cropInfo2 = document.getElementById('crop-info-2');
+const diptychCropWarning = document.getElementById('diptych-crop-warning');
+
 // Initialize
 document.addEventListener('DOMContentLoaded', function() {
     initializeUpload();
@@ -50,6 +69,7 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeLetterbox();
     initializeProcess();
     initializeDownload();
+    initializeDiptych();
 });
 
 // Upload functionality
@@ -165,6 +185,11 @@ function initializePresets() {
             // Add active class to clicked button
             this.classList.add('active');
 
+            // Reset diptych mode if active
+            if (state.diptychMode) {
+                resetDiptychState();
+            }
+
             // Store preset data
             state.selectedPreset = this.dataset.preset;
             state.selectedPresetData = {
@@ -277,6 +302,29 @@ function updateCropInfo(detail) {
         } else {
             info += ` | No bars (fits frame exactly)`;
         }
+
+        // Show/hide diptych button based on whether there's room for a second image
+        const sw1 = Math.round(width * targetH / height);
+        const gap = Math.round(targetW * 0.01);
+        if (sw1 < targetW - gap && !state.diptychMode) {
+            diptychControls.style.display = 'block';
+        } else if (!state.diptychMode) {
+            diptychControls.style.display = 'none';
+        }
+
+        // Update cropper2 aspect ratio if in diptych mode
+        if (state.diptychMode && state.cropper2) {
+            const ratio2 = computeImage2Ratio();
+            if (ratio2 !== null && ratio2 > 0) {
+                state.cropper2.setAspectRatio(ratio2);
+                diptychCropWarning.style.display = 'none';
+            } else {
+                diptychCropWarning.textContent = 'Image 1 crop is too wide — no room for a second image.';
+                diptychCropWarning.style.display = 'block';
+            }
+        }
+    } else {
+        diptychControls.style.display = 'none';
     }
 
     cropInfo.textContent = info;
@@ -288,6 +336,11 @@ function initializeProcess() {
 }
 
 function processImage() {
+    if (state.diptychMode) {
+        processDiptychImage();
+        return;
+    }
+
     if (!state.cropper) {
         showProcessStatus('Please select a crop area first', 'error');
         return;
@@ -423,9 +476,12 @@ function initializeDownload() {
     });
 
     resetBtn.addEventListener('click', function() {
-        // Destroy cropper before resetting state
+        // Destroy croppers before resetting state
         if (state.cropper) {
             state.cropper.destroy();
+        }
+        if (state.cropper2) {
+            state.cropper2.destroy();
         }
 
         // Reset state
@@ -439,7 +495,13 @@ function initializeDownload() {
             cropper: null,
             processedImageBlob: null,
             suggestedFilename: null,
-            letterboxEnabled: false
+            letterboxEnabled: false,
+            diptychMode: false,
+            image2File: null,
+            image2Image: null,
+            image2ImageUrl: null,
+            image2OriginalFilename: null,
+            cropper2: null
         };
 
         // Reset UI
@@ -453,11 +515,273 @@ function initializeDownload() {
         processStatus.textContent = '';
         selectedPresetInfo.style.display = 'none';
         letterboxToggle.checked = false;
+        letterboxToggle.disabled = false;
         letterboxHint.style.display = 'none';
+
+        // Reset diptych UI
+        diptychControls.style.display = 'none';
+        diptychUploadSection.style.display = 'none';
+        diptychCropSection.style.display = 'none';
+        diptychCropWarning.style.display = 'none';
+        if (uploadStatus2) uploadStatus2.textContent = '';
+        if (fileInput2) fileInput2.value = '';
 
         presetButtons.forEach(btn => btn.classList.remove('active'));
 
         // Scroll to top
         window.scrollTo({ top: 0, behavior: 'smooth' });
     });
+}
+
+// Diptych functionality
+function initializeDiptych() {
+    // Diptych button click
+    diptychBtn.addEventListener('click', function() {
+        state.diptychMode = true;
+        letterboxToggle.disabled = true;
+        diptychControls.style.display = 'none';
+        diptychUploadSection.style.display = 'block';
+        diptychUploadSection.scrollIntoView({ behavior: 'smooth' });
+    });
+
+    // Upload area 2 click
+    uploadArea2.addEventListener('click', () => fileInput2.click());
+
+    // File input 2
+    fileInput2.addEventListener('change', function(e) {
+        if (e.target.files.length > 0) {
+            handleFile2(e.target.files[0]);
+        }
+    });
+
+    // Drag and drop for upload area 2
+    uploadArea2.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadArea2.classList.add('dragover');
+    });
+
+    uploadArea2.addEventListener('dragleave', () => {
+        uploadArea2.classList.remove('dragover');
+    });
+
+    uploadArea2.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadArea2.classList.remove('dragover');
+        if (e.dataTransfer.files.length > 0) {
+            handleFile2(e.dataTransfer.files[0]);
+        }
+    });
+}
+
+function handleFile2(file) {
+    const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/bmp'];
+    if (!validTypes.includes(file.type)) {
+        uploadStatus2.className = 'error';
+        uploadStatus2.textContent = 'Invalid file type. Please upload an image file.';
+        return;
+    }
+
+    uploadStatus2.className = 'loading';
+    uploadStatus2.textContent = 'Loading image...';
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const img = new Image();
+        img.onload = function() {
+            state.image2File = file;
+            state.image2Image = img;
+            state.image2ImageUrl = e.target.result;
+            state.image2OriginalFilename = file.name;
+
+            uploadStatus2.className = 'success';
+            uploadStatus2.textContent = `Loaded successfully! (${img.width} × ${img.height})`;
+
+            initializeCropper2();
+        };
+        img.onerror = function() {
+            uploadStatus2.className = 'error';
+            uploadStatus2.textContent = 'Failed to load image';
+        };
+        img.src = e.target.result;
+    };
+    reader.onerror = function() {
+        uploadStatus2.className = 'error';
+        uploadStatus2.textContent = 'Failed to read file';
+    };
+    reader.readAsDataURL(file);
+}
+
+function computeImage2Ratio() {
+    if (!state.cropper || !state.selectedPresetData) return null;
+
+    const cropData = state.cropper.getData();
+    const cropW = Math.round(cropData.width);
+    const cropH = Math.round(cropData.height);
+
+    if (cropW <= 0 || cropH <= 0) return null;
+
+    const targetW = state.selectedPresetData.width;
+    const targetH = state.selectedPresetData.height;
+    const gap = Math.round(targetW * 0.01);
+    const sw1 = Math.round(cropW * targetH / cropH);
+    const sw2 = targetW - gap - sw1;
+
+    if (sw2 <= 0) return null;
+
+    return sw2 / targetH;
+}
+
+function initializeCropper2() {
+    if (state.cropper2) {
+        state.cropper2.destroy();
+    }
+
+    diptychCropSection.style.display = 'block';
+
+    const ratio2 = computeImage2Ratio();
+    const aspectRatio = (ratio2 !== null && ratio2 > 0) ? ratio2 : 1;
+
+    function createCropper2() {
+        if (state.cropper2) {
+            state.cropper2.destroy();
+        }
+        state.cropper2 = new Cropper(cropImage2, {
+            aspectRatio: aspectRatio,
+            viewMode: 1,
+            dragMode: 'move',
+            autoCropArea: 0.8,
+            restore: false,
+            guides: true,
+            center: true,
+            highlight: false,
+            cropBoxMovable: true,
+            cropBoxResizable: true,
+            toggleDragModeOnDblclick: false,
+            crop: function(event) {
+                updateCropInfo2(event.detail);
+            }
+        });
+    }
+
+    cropImage2.onload = null;
+    cropImage2.onload = function() {
+        createCropper2();
+    };
+
+    cropImage2.src = state.image2ImageUrl;
+
+    if (cropImage2.complete && cropImage2.naturalWidth > 0) {
+        createCropper2();
+    }
+
+    diptychCropSection.scrollIntoView({ behavior: 'smooth' });
+}
+
+function updateCropInfo2(detail) {
+    const width = Math.round(detail.width);
+    const height = Math.round(detail.height);
+    const x = Math.round(detail.x);
+    const y = Math.round(detail.y);
+    cropInfo2.textContent = `Crop area: ${width} × ${height}px at position (${x}, ${y})`;
+}
+
+function resetDiptychState() {
+    if (state.cropper2) {
+        state.cropper2.destroy();
+        state.cropper2 = null;
+    }
+    state.diptychMode = false;
+    state.image2File = null;
+    state.image2Image = null;
+    state.image2ImageUrl = null;
+    state.image2OriginalFilename = null;
+
+    diptychControls.style.display = 'none';
+    diptychUploadSection.style.display = 'none';
+    diptychCropSection.style.display = 'none';
+    diptychCropWarning.style.display = 'none';
+    if (uploadStatus2) uploadStatus2.textContent = '';
+    if (fileInput2) fileInput2.value = '';
+    letterboxToggle.disabled = false;
+}
+
+function processDiptychImage() {
+    if (!state.cropper || !state.cropper2) {
+        showProcessStatus('Please crop both images first', 'error');
+        return;
+    }
+
+    const cropData1 = state.cropper.getData();
+    const cropData2 = state.cropper2.getData();
+
+    processBtn.disabled = true;
+    showProcessStatus('Processing diptych...', 'loading');
+
+    setTimeout(() => {
+        try {
+            const targetW = state.selectedPresetData.width;
+            const targetH = state.selectedPresetData.height;
+
+            const crop1W = Math.round(cropData1.width);
+            const crop1H = Math.round(cropData1.height);
+            const gap = Math.round(targetW * 0.01);
+            const sw1 = Math.round(crop1W * targetH / crop1H);
+            const sw2 = targetW - gap - sw1;
+
+            const canvas = document.createElement('canvas');
+            canvas.width = targetW;
+            canvas.height = targetH;
+            const ctx = canvas.getContext('2d');
+
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+
+            // Fill with black (for the gap)
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, targetW, targetH);
+
+            // Draw image 1
+            ctx.drawImage(
+                state.uploadedImage,
+                Math.round(cropData1.x), Math.round(cropData1.y),
+                crop1W, crop1H,
+                0, 0, sw1, targetH
+            );
+
+            // Draw image 2
+            ctx.drawImage(
+                state.image2Image,
+                Math.round(cropData2.x), Math.round(cropData2.y),
+                Math.round(cropData2.width), Math.round(cropData2.height),
+                sw1 + gap, 0, sw2, targetH
+            );
+
+            canvas.toBlob(function(blob) {
+                if (blob) {
+                    state.processedImageBlob = blob;
+
+                    const name1 = state.originalFilename.replace(/\.[^/.]+$/, '');
+                    const name2 = state.image2OriginalFilename.replace(/\.[^/.]+$/, '');
+                    const presetSuffix = state.selectedPreset === '4k' ? '_4k' : '_fhd';
+                    state.suggestedFilename = `${name1}_${name2}_pair${presetSuffix}`;
+
+                    downloadFilenameInput.value = state.suggestedFilename;
+
+                    showProcessStatus('Processing complete!', 'success');
+
+                    setTimeout(() => {
+                        downloadSection.style.display = 'block';
+                        downloadSection.scrollIntoView({ behavior: 'smooth' });
+                    }, 500);
+                } else {
+                    showProcessStatus('Failed to process diptych', 'error');
+                    processBtn.disabled = false;
+                }
+            }, 'image/jpeg', 0.95);
+
+        } catch (error) {
+            showProcessStatus('Processing failed: ' + error.message, 'error');
+            processBtn.disabled = false;
+        }
+    }, 100);
 }

@@ -27,6 +27,7 @@ This application offers two processing modes to suit your needs:
 - **Preset Resolutions**: Quick selection for 4K (3840×2160) and Full HD (1920×1080)
 - **Interactive Cropping**: Drag and resize crop box with locked aspect ratio
 - **Letterbox / Pillarbox Mode**: Toggle free-aspect cropping with automatic black bars to fill the frame
+- **Side-by-Side Pair (Diptych) Mode**: Combine two portrait-cropped images on a single frame with zero wasted space
 - **Smart Upscaling**: High-quality Lanczos resampling for crisp results
 - **Instant Download**: Process and download your optimized image
 
@@ -97,6 +98,7 @@ http://localhost:5000
 2. **Select Resolution**: Choose 4K or Full HD preset
 3. **Crop**: Drag and resize the crop box to select your desired area
    - **Optional**: Enable "Allow blank space (letterbox)" to crop freely without the 16:9 constraint. Black bars will be added to fill the frame while preserving your crop's aspect ratio.
+   - **Side-by-Side Pair**: When letterbox is enabled and the crop is portrait-ish (leaving room for a second image), an "Add second image (side-by-side pair)" button appears. Click it to upload and crop a second image — its aspect ratio is automatically locked so both images fill the frame perfectly with only a thin black gap between them.
 4. **Process**: Click "Process & Upscale Image"
 5. **Download**: Save your optimized image
 
@@ -137,6 +139,7 @@ image_crop_upscale/
    - Pillow crops the image to selected area
    - **Standard mode**: Image is stretched to fill the target resolution
    - **Letterbox mode**: Image is scaled to fit within the target (maintaining its aspect ratio) and centered on a black canvas, producing equal bars on each side
+   - **Diptych mode**: Both crops are scaled to the target height, placed side-by-side with a 1% gap, and the second image's width fills the remaining frame exactly (`sw1 + gap + sw2 = targetW`)
    - High-quality JPEG is saved (quality=95)
 6. **Download**: Processed image is served for download
 
