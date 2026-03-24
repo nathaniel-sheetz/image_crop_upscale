@@ -517,3 +517,54 @@ class TestCropAndCombineDiptych:
             for p in [input1, input2, output]:
                 if os.path.exists(p):
                     os.unlink(p)
+
+    def test_diptych_custom_gap_percent(self):
+        """Custom gap_percent produces correct gap size in output"""
+        target_w, target_h = 1920, 1080
+        crop1 = {'x': 0, 'y': 0, 'width': 400, 'height': 900}
+        crop2 = {'x': 0, 'y': 0, 'width': 500, 'height': 800}
+        sw1 = round(400 * target_h / 900)
+
+        for pct in [1, 3, 10]:
+            input1 = self._create_temp_image(400, 900, (255, 0, 0))
+            input2 = self._create_temp_image(500, 800, (0, 0, 255))
+            output = tempfile.NamedTemporaryFile(suffix='.jpg', delete=False).name
+
+            try:
+                expected_gap = round(target_w * pct / 100)
+                crop_and_combine_diptych(
+                    input1, input2, output, crop1, crop2, target_w, target_h, gap_percent=pct
+                )
+
+                with Image.open(output) as result:
+                    assert result.size == (target_w, target_h)
+                    # Check gap column is black
+                    if expected_gap > 0:
+                        gap_x = sw1 + expected_gap // 2
+                        pixel = result.getpixel((gap_x, target_h // 2))
+                        assert pixel == (0, 0, 0), \
+                            f"Gap pixel should be black at gap_percent={pct}, got {pixel}"
+            finally:
+                for p in [input1, input2, output]:
+                    if os.path.exists(p):
+                        os.unlink(p)
+
+    def test_diptych_default_gap_percent_backward_compat(self):
+        """Default gap_percent=1.0 matches the original 1% behavior"""
+        target_w, target_h = 1920, 1080
+        input1 = self._create_temp_image(400, 900, 'red')
+        input2 = self._create_temp_image(500, 800, 'blue')
+        output = tempfile.NamedTemporaryFile(suffix='.jpg', delete=False).name
+
+        try:
+            crop1 = {'x': 0, 'y': 0, 'width': 400, 'height': 900}
+            crop2 = {'x': 0, 'y': 0, 'width': 500, 'height': 800}
+            # Call without gap_percent — should use default 1.0
+            crop_and_combine_diptych(input1, input2, output, crop1, crop2, target_w, target_h)
+
+            with Image.open(output) as result:
+                assert result.size == (target_w, target_h)
+        finally:
+            for p in [input1, input2, output]:
+                if os.path.exists(p):
+                    os.unlink(p)

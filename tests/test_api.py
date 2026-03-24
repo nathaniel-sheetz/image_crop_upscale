@@ -2,6 +2,7 @@ import pytest
 import json
 import io
 import os
+import tempfile
 from PIL import Image
 
 class TestIndexRoute:
@@ -14,8 +15,8 @@ class TestIndexRoute:
         assert b'Frame TV Image Processor' in response.data
 
     def test_index_contains_presets(self, client):
-        """Test that index page contains preset buttons"""
-        response = client.get('/')
+        """Test that the app page contains preset buttons"""
+        response = client.get('/app')
         assert b'4K' in response.data or b'4k' in response.data
         assert b'Full HD' in response.data or b'1920' in response.data
 
@@ -506,6 +507,63 @@ class TestProcessDiptychEndpoint:
         json_data = response.get_json()
         assert json_data['suggested_filename'] == 'portrait1_portrait2_pair_4k.jpg'
 
+    def test_diptych_gap_percent_passed_through(self, client, sample_image_portrait, sample_image_portrait_2, app):
+        """gap_percent in request flows through to the correct output gap width"""
+        upload1 = self._upload_image(client, sample_image_portrait, 'portrait1.jpg')
+        upload2 = self._upload_image(client, sample_image_portrait_2, 'portrait2.jpg')
+
+        target_w, target_h = 1920, 1080
+        sw1 = round(400 * target_h / 900)
+
+        for gap_percent in [1, 5]:
+            process_data = {
+                'filename1': upload1['filename'],
+                'filename2': upload2['filename'],
+                'preset': 'fhd',
+                'gap_percent': gap_percent,
+                'crop1': {'x': 0, 'y': 0, 'width': 400, 'height': 900},
+                'crop2': {'x': 0, 'y': 0, 'width': 500, 'height': 800}
+            }
+            response = client.post('/process-diptych',
+                                   data=json.dumps(process_data),
+                                   content_type='application/json')
+
+            assert response.status_code == 200
+            json_data = response.get_json()
+            assert json_data['success'] == True
+
+            expected_gap = round(target_w * gap_percent / 100)
+            processed_path = os.path.join(app.config['PROCESSED_FOLDER'], json_data['filename'])
+            with Image.open(processed_path) as img:
+                assert img.size == (target_w, target_h)
+                # Center of the gap column should be black
+                gap_x = sw1 + expected_gap // 2
+                pixel = img.getpixel((gap_x, target_h // 2))
+                assert pixel == (0, 0, 0), \
+                    f"Gap pixel should be black at gap_percent={gap_percent}, got {pixel}"
+
+    def test_diptych_gap_percent_clamped(self, client, sample_image_portrait, sample_image_portrait_2, app):
+        """gap_percent values outside 1-10 are clamped to that range"""
+        upload1 = self._upload_image(client, sample_image_portrait, 'portrait1.jpg')
+        upload2 = self._upload_image(client, sample_image_portrait_2, 'portrait2.jpg')
+
+        # Value of 0 should be clamped to 1
+        process_data = {
+            'filename1': upload1['filename'],
+            'filename2': upload2['filename'],
+            'preset': 'fhd',
+            'gap_percent': 0,
+            'crop1': {'x': 0, 'y': 0, 'width': 400, 'height': 900},
+            'crop2': {'x': 0, 'y': 0, 'width': 500, 'height': 800}
+        }
+        response = client.post('/process-diptych',
+                               data=json.dumps(process_data),
+                               content_type='application/json')
+
+        assert response.status_code == 200
+        json_data = response.get_json()
+        assert json_data['success'] == True
+
 
 class TestUploadedFileEndpoint:
     """Test the /uploads/<filename> endpoint"""
@@ -525,3 +583,165 @@ class TestUploadedFileEndpoint:
 
         assert response.status_code == 200
         assert len(response.data) > 0
+
+
+class TestBulkScan:
+    """Test the /bulk/scan endpoint"""
+
+    def _make_image_file(self, folder, filename, width, height, color='red'):
+        """Save a PIL image to a temp folder and return its path"""
+        img = Image.new('RGB', (width, height), color=color)
+        path = os.path.join(folder, filename)
+        img.save(path, format='JPEG')
+        return path
+
+    def test_bulk_page_loads(self, client):
+        """GET /bulk renders without error"""
+        response = client.get('/bulk')
+        assert response.status_code == 200
+        assert b'Bulk Mode' in response.data
+
+    def test_scan_no_body(self, client):
+        """Missing body returns 400"""
+        response = client.post('/bulk/scan',
+                               data='{}',
+                               content_type='application/json')
+        assert response.status_code == 400
+
+    def test_scan_folder_not_found(self, client):
+        """Non-existent folder path returns 404"""
+        payload = {'folder_path': '/does/not/exist/ever/12345'}
+        response = client.post('/bulk/scan',
+                               data=json.dumps(payload),
+                               content_type='application/json')
+        assert response.status_code == 404
+        assert 'error' in response.get_json()
+
+    def test_scan_path_is_file_not_dir(self, client, tmp_path):
+        """Passing a file path (not a directory) returns 400"""
+        f = tmp_path / 'notadir.jpg'
+        f.write_bytes(b'dummy')
+        payload = {'folder_path': str(f)}
+        response = client.post('/bulk/scan',
+                               data=json.dumps(payload),
+                               content_type='application/json')
+        assert response.status_code == 400
+        assert 'error' in response.get_json()
+
+    def test_scan_empty_folder(self, client, tmp_path):
+        """Empty folder returns success with empty arrays"""
+        payload = {'folder_path': str(tmp_path), 'aspect_threshold': 1.0}
+        response = client.post('/bulk/scan',
+                               data=json.dumps(payload),
+                               content_type='application/json')
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['success'] is True
+        assert data['wide'] == []
+        assert data['narrow'] == []
+        assert data['total'] == 0
+
+    def test_scan_classifies_wide_and_narrow(self, client, tmp_path, app):
+        """Wide (landscape) and narrow (portrait) images are classified correctly"""
+        self._make_image_file(tmp_path, 'landscape.jpg', 1600, 900, 'blue')   # ratio ~1.78 → wide
+        self._make_image_file(tmp_path, 'portrait.jpg', 400, 900, 'cyan')     # ratio ~0.44 → narrow
+        self._make_image_file(tmp_path, 'square.jpg', 500, 500, 'green')      # ratio 1.0 → narrow (not >1.0)
+
+        payload = {'folder_path': str(tmp_path), 'aspect_threshold': 1.0}
+        response = client.post('/bulk/scan',
+                               data=json.dumps(payload),
+                               content_type='application/json')
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['success'] is True
+        assert data['wide_count'] == 1
+        assert data['narrow_count'] == 2
+        assert data['total'] == 3
+
+        wide_names = [img['original_filename'] for img in data['wide']]
+        assert 'landscape.jpg' in wide_names
+
+        narrow_names = [img['original_filename'] for img in data['narrow']]
+        assert 'portrait.jpg' in narrow_names
+        assert 'square.jpg' in narrow_names
+
+    def test_scan_custom_threshold(self, client, tmp_path, app):
+        """Custom aspect threshold changes classification"""
+        self._make_image_file(tmp_path, 'wide43.jpg', 800, 600, 'red')    # ratio 1.33
+        self._make_image_file(tmp_path, 'landscape.jpg', 1920, 1080, 'blue')  # ratio 1.78
+
+        # Threshold 1.5 → only 16:9 (1.78) should be wide
+        payload = {'folder_path': str(tmp_path), 'aspect_threshold': 1.5}
+        response = client.post('/bulk/scan',
+                               data=json.dumps(payload),
+                               content_type='application/json')
+        data = response.get_json()
+        assert data['wide_count'] == 1
+        assert data['narrow_count'] == 1
+        assert data['wide'][0]['original_filename'] == 'landscape.jpg'
+
+    def test_scan_response_shape(self, client, tmp_path, app):
+        """Each image record has required fields"""
+        self._make_image_file(tmp_path, 'test.jpg', 800, 600, 'yellow')
+
+        payload = {'folder_path': str(tmp_path), 'aspect_threshold': 1.0}
+        response = client.post('/bulk/scan',
+                               data=json.dumps(payload),
+                               content_type='application/json')
+        data = response.get_json()
+        record = data['wide'][0]
+
+        assert 'upload_filename' in record
+        assert 'original_filename' in record
+        assert 'url' in record
+        assert 'width' in record
+        assert 'height' in record
+        assert 'aspect_ratio' in record
+        assert record['width'] == 800
+        assert record['height'] == 600
+        assert record['url'].startswith('/uploads/')
+
+    def test_scan_stages_file_into_uploads(self, client, tmp_path, app):
+        """Scanned files are copied into the uploads folder and are servable"""
+        self._make_image_file(tmp_path, 'myimage.jpg', 400, 300, 'magenta')
+
+        payload = {'folder_path': str(tmp_path), 'aspect_threshold': 1.0}
+        response = client.post('/bulk/scan',
+                               data=json.dumps(payload),
+                               content_type='application/json')
+        data = response.get_json()
+        record = data['wide'][0]
+
+        # The staged file should be accessible via /uploads/
+        serve_response = client.get(record['url'])
+        assert serve_response.status_code == 200
+
+    def test_scan_skips_non_image_files(self, client, tmp_path, app):
+        """Non-image files in the folder are silently ignored"""
+        self._make_image_file(tmp_path, 'real.jpg', 800, 600, 'red')
+        (tmp_path / 'readme.txt').write_text('not an image')
+        (tmp_path / 'data.csv').write_text('a,b,c')
+
+        payload = {'folder_path': str(tmp_path), 'aspect_threshold': 1.0}
+        response = client.post('/bulk/scan',
+                               data=json.dumps(payload),
+                               content_type='application/json')
+        data = response.get_json()
+        assert data['total'] == 1  # only the JPEG counts
+
+    def test_scan_skips_corrupt_image(self, client, tmp_path, app):
+        """A corrupt file with an image extension is added to skipped, not 500"""
+        self._make_image_file(tmp_path, 'good.jpg', 400, 300, 'blue')
+        corrupt = tmp_path / 'corrupt.jpg'
+        corrupt.write_bytes(b'this is not a real JPEG at all')
+
+        payload = {'folder_path': str(tmp_path), 'aspect_threshold': 1.0}
+        response = client.post('/bulk/scan',
+                               data=json.dumps(payload),
+                               content_type='application/json')
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['success'] is True
+        assert data['total'] == 1          # only the good image
+        assert 'corrupt.jpg' in data['skipped']

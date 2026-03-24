@@ -18,7 +18,8 @@ let state = {
     image2UploadedFilename: null,
     image2OriginalFilename: null,
     image2ImageUrl: null,
-    cropper2: null
+    cropper2: null,
+    gapPercent: 1
 };
 
 // DOM Elements
@@ -54,6 +55,12 @@ const diptychCropSection = document.getElementById('diptych-crop-section');
 const cropImage2 = document.getElementById('crop-image-2');
 const cropInfo2 = document.getElementById('crop-info-2');
 const diptychCropWarning = document.getElementById('diptych-crop-warning');
+const diptychGapControl = document.getElementById('diptych-gap-control');
+const gapSlider = document.getElementById('gap-slider');
+const gapPxDisplay = document.getElementById('gap-px-display');
+const gapPercentDisplay = document.getElementById('gap-percent-display');
+const diptychRefreshBar = document.getElementById('diptych-refresh-bar');
+const diptychRefreshBtn = document.getElementById('diptych-refresh-btn');
 
 // Initialize
 document.addEventListener('DOMContentLoaded', function() {
@@ -245,7 +252,7 @@ function initializeCropper() {
             aspectRatio: aspectRatio,
             viewMode: 1,
             dragMode: 'move',
-            autoCropArea: 0.8,
+            autoCropArea: 1,
             restore: false,
             guides: true,
             center: true,
@@ -304,20 +311,22 @@ function updateCropInfo(detail) {
 
         // Show/hide diptych button based on whether there's room for a second image
         const sw1 = Math.round(width * targetH / height);
-        const gap = Math.round(targetW * 0.01);
+        const gap = Math.round(targetW * state.gapPercent / 100);
         if (sw1 < targetW - gap && !state.diptychMode) {
             diptychControls.style.display = 'block';
         } else if (!state.diptychMode) {
             diptychControls.style.display = 'none';
         }
 
-        // Update cropper2 aspect ratio if in diptych mode
+        // Update cropper2 aspect ratio if in diptych mode and Image 2 is loaded
         if (state.diptychMode && state.cropper2) {
             const ratio2 = computeImage2Ratio();
             if (ratio2 !== null && ratio2 > 0) {
                 state.cropper2.setAspectRatio(ratio2);
                 diptychCropWarning.style.display = 'none';
+                diptychRefreshBar.style.display = 'flex';
             } else {
+                diptychRefreshBar.style.display = 'none';
                 diptychCropWarning.textContent = 'Image 1 crop is too wide — no room for a second image.';
                 diptychCropWarning.style.display = 'block';
             }
@@ -446,7 +455,8 @@ function initializeDownload() {
             image2UploadedFilename: null,
             image2OriginalFilename: null,
             image2ImageUrl: null,
-            cropper2: null
+            cropper2: null,
+            gapPercent: 1
         };
 
         // Reset UI
@@ -468,6 +478,11 @@ function initializeDownload() {
         diptychUploadSection.style.display = 'none';
         diptychCropSection.style.display = 'none';
         diptychCropWarning.style.display = 'none';
+        diptychRefreshBar.style.display = 'none';
+        diptychGapControl.style.display = 'none';
+        gapSlider.value = '1';
+        gapPercentDisplay.textContent = '1%';
+        gapPxDisplay.textContent = '~38px';
         if (uploadStatus2) uploadStatus2.textContent = '';
         if (fileInput2) fileInput2.value = '';
 
@@ -497,6 +512,32 @@ function initializeDiptych() {
         if (e.target.files.length > 0) {
             handleFile2(e.target.files[0]);
         }
+    });
+
+    // Gap slider
+    gapSlider.addEventListener('input', function() {
+        state.gapPercent = parseInt(this.value);
+        gapPercentDisplay.textContent = state.gapPercent + '%';
+        if (state.selectedPresetData) {
+            const px = Math.round(state.selectedPresetData.width * state.gapPercent / 100);
+            gapPxDisplay.textContent = '~' + px + 'px';
+        }
+        if (state.diptychMode && state.cropper2) {
+            const ratio2 = computeImage2Ratio();
+            if (ratio2 !== null && ratio2 > 0) {
+                diptychRefreshBar.style.display = 'flex';
+                diptychCropWarning.style.display = 'none';
+            } else {
+                diptychRefreshBar.style.display = 'none';
+                diptychCropWarning.textContent = 'Image 1 crop is too wide — no room for a second image.';
+                diptychCropWarning.style.display = 'block';
+            }
+        }
+    });
+
+    // Refresh button
+    diptychRefreshBtn.addEventListener('click', function() {
+        initializeCropper2();
     });
 
     // Drag and drop for upload area 2
@@ -576,7 +617,7 @@ function computeImage2Ratio() {
 
     const targetW = state.selectedPresetData.width;
     const targetH = state.selectedPresetData.height;
-    const gap = Math.round(targetW * 0.01);
+    const gap = Math.round(targetW * state.gapPercent / 100);
     const sw1 = Math.round(cropW * targetH / cropH);
     const sw2 = targetW - gap - sw1;
 
@@ -592,6 +633,16 @@ function initializeCropper2() {
 
     diptychCropSection.style.display = 'block';
 
+    // Show and sync gap control
+    gapSlider.value = String(state.gapPercent);
+    gapPercentDisplay.textContent = state.gapPercent + '%';
+    if (state.selectedPresetData) {
+        const px = Math.round(state.selectedPresetData.width * state.gapPercent / 100);
+        gapPxDisplay.textContent = '~' + px + 'px';
+    }
+    diptychGapControl.style.display = 'flex';
+    diptychRefreshBar.style.display = 'none';
+
     const ratio2 = computeImage2Ratio();
     const aspectRatio = (ratio2 !== null && ratio2 > 0) ? ratio2 : 1;
 
@@ -603,7 +654,7 @@ function initializeCropper2() {
             aspectRatio: aspectRatio,
             viewMode: 1,
             dragMode: 'move',
-            autoCropArea: 0.8,
+            autoCropArea: 1,
             restore: false,
             guides: true,
             center: true,
@@ -653,6 +704,8 @@ function resetDiptychState() {
     diptychUploadSection.style.display = 'none';
     diptychCropSection.style.display = 'none';
     diptychCropWarning.style.display = 'none';
+    diptychRefreshBar.style.display = 'none';
+    diptychGapControl.style.display = 'none';
     if (uploadStatus2) uploadStatus2.textContent = '';
     if (fileInput2) fileInput2.value = '';
     letterboxToggle.disabled = false;
@@ -673,6 +726,7 @@ async function processDiptychImage() {
         original_filename1: state.originalFilename,
         original_filename2: state.image2OriginalFilename,
         preset: state.selectedPreset,
+        gap_percent: state.gapPercent,
         crop1: {
             x: Math.round(cropData1.x),
             y: Math.round(cropData1.y),

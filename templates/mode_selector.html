@@ -44,7 +44,7 @@
 
         .mode-selection {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
             gap: 30px;
         }
 
@@ -177,6 +177,21 @@
                     <li>Handles large files (16MB+)</li>
                 </ul>
                 <div class="mode-button">Launch Server Mode</div>
+            </a>
+
+            <!-- Bulk Mode -->
+            <a href="/bulk" class="mode-card">
+                <div class="mode-icon">📦</div>
+                <h2>Bulk Mode</h2>
+                <div class="badge badge-quality">Batch Processing</div>
+                <p>Point the app at a folder of images and process them all. Wide images get quick single crops; portrait images get paired into diptychs.</p>
+                <ul class="mode-features">
+                    <li>Auto-classify by aspect ratio</li>
+                    <li>Fast one-by-one wide image crops</li>
+                    <li>Pick portrait pairs for diptychs</li>
+                    <li>Gallery view of all outputs</li>
+                </ul>
+                <div class="mode-button">Launch Bulk Mode</div>
             </a>
 
             <!-- Browser Mode -->

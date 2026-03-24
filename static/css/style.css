@@ -341,6 +341,64 @@ header p {
     border-left: 3px solid #d69e2e;
 }
 
+#diptych-gap-control {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 15px;
+    flex-wrap: wrap;
+}
+
+#diptych-gap-control label {
+    font-weight: 500;
+    color: #555;
+    white-space: nowrap;
+}
+
+#diptych-gap-control input[type="range"] {
+    flex: 1;
+    min-width: 120px;
+    max-width: 200px;
+}
+
+#gap-percent-display {
+    color: #667eea;
+    font-weight: 600;
+    min-width: 2rem;
+}
+
+#diptych-refresh-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #fffbeb;
+    border: 1px solid #d69e2e;
+    border-radius: 6px;
+    padding: 10px 15px;
+    margin-top: 8px;
+    gap: 12px;
+}
+
+#diptych-refresh-bar span {
+    color: #92400e;
+    font-size: 0.9rem;
+}
+
+.btn-warning {
+    background: #d69e2e;
+    color: white;
+}
+
+.btn-warning:hover {
+    background: #b7791f;
+    transform: translateY(-2px);
+}
+
+.btn-sm {
+    padding: 8px 16px;
+    font-size: 0.9rem;
+}
+
 #upload-area-2 {
     border: 3px dashed #667eea;
     border-radius: 8px;

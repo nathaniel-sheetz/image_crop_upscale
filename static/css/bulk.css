@@ -1,0 +1,429 @@
+/* =========================================================
+   Bulk Mode Styles
+   Reuses: .card, .btn, .btn-primary, .btn-secondary, .btn-success,
+           .image-container, .warning-text from style.css
+   ========================================================= */
+
+/* --- Header back link --- */
+.back-link {
+    color: rgba(255,255,255,0.85);
+    text-decoration: none;
+    font-size: 0.95rem;
+}
+.back-link:hover { color: white; }
+
+/* --- Phase tab navigation --- */
+.phase-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 24px;
+}
+
+.phase-tab {
+    padding: 8px 20px;
+    border-radius: 6px;
+    border: 2px solid #667eea;
+    background: white;
+    color: #667eea;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+}
+
+.phase-tab:hover:not(:disabled) {
+    background: #eef0ff;
+}
+
+.phase-tab.active {
+    background: #667eea;
+    color: white;
+}
+
+.phase-tab:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    border-color: #ccc;
+    color: #999;
+}
+
+/* --- Phase sections --- */
+.phase-section { margin-bottom: 24px; }
+
+/* --- Form elements --- */
+.form-group {
+    margin-bottom: 24px;
+}
+
+.form-group label {
+    display: block;
+    font-weight: 600;
+    color: #444;
+    margin-bottom: 8px;
+}
+
+.label-hint {
+    font-weight: 400;
+    color: #888;
+    font-size: 0.85rem;
+}
+
+.text-input {
+    width: 100%;
+    padding: 10px 14px;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 1rem;
+    transition: border-color 0.2s;
+}
+
+.text-input:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+.range-input {
+    width: 100%;
+    margin-top: 6px;
+}
+
+.threshold-hints {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    color: #888;
+    margin-top: 4px;
+}
+
+/* --- Preset buttons --- */
+.preset-buttons {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+}
+
+.preset-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 14px 20px;
+    border: 2px solid #e2e8f0;
+    border-radius: 10px;
+    background: white;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    gap: 4px;
+}
+
+.preset-btn strong { font-size: 1rem; color: #333; }
+.preset-btn span { font-size: 0.8rem; color: #888; }
+
+.preset-btn:hover { border-color: #667eea; background: #f7f8ff; }
+.preset-btn.selected { border-color: #667eea; background: #eef0ff; }
+.preset-btn.selected strong { color: #667eea; }
+
+/* --- Status messages --- */
+.status-message {
+    margin-top: 12px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+}
+
+.status-message.loading {
+    background: #ebf8ff;
+    color: #2b6cb0;
+    border: 1px solid #bee3f8;
+}
+
+.status-message.success {
+    background: #f0fff4;
+    color: #276749;
+    border: 1px solid #c6f6d5;
+}
+
+.status-message.error {
+    background: #fff5f5;
+    color: #c53030;
+    border: 1px solid #feb2b2;
+}
+
+/* --- Wide phase --- */
+.wide-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 8px;
+}
+
+.wide-progress {
+    font-size: 0.9rem;
+    color: #667eea;
+    font-weight: 600;
+}
+
+.wide-filename {
+    font-size: 0.85rem;
+    color: #666;
+    margin-bottom: 10px;
+}
+
+.letterbox-toggle {
+    margin-bottom: 12px;
+}
+
+.toggle-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    color: #555;
+    font-weight: 500;
+}
+
+.toggle-label input[type="checkbox"] { cursor: pointer; }
+
+.crop-info {
+    font-size: 0.85rem;
+    color: #555;
+    margin-top: 6px;
+    min-height: 1.2em;
+}
+
+.wide-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 16px;
+}
+
+/* --- Small button variant --- */
+.btn-sm {
+    padding: 6px 14px;
+    font-size: 0.85rem;
+}
+
+/* --- Narrow phase layout --- */
+.narrow-phase-layout {
+    display: grid;
+    grid-template-columns: 1fr 420px;
+    gap: 24px;
+    align-items: start;
+}
+
+@media (max-width: 900px) {
+    .narrow-phase-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
+.phase-hint {
+    color: #666;
+    font-size: 0.9rem;
+    margin-bottom: 16px;
+}
+
+/* --- Thumbnail grid --- */
+.narrow-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 10px;
+    margin-bottom: 16px;
+}
+
+.thumb-card {
+    border-radius: 8px;
+    border: 3px solid transparent;
+    overflow: hidden;
+    cursor: pointer;
+    transition: border-color 0.15s, opacity 0.2s, transform 0.15s;
+    background: #f7f8fa;
+}
+
+.thumb-card:hover:not(.used-diptych) {
+    border-color: #667eea;
+    transform: scale(1.02);
+}
+
+.thumb-card.selected {
+    border-color: #667eea;
+    box-shadow: 0 0 0 2px #667eea44;
+}
+
+.thumb-card.used-diptych {
+    opacity: 0.38;
+    cursor: default;
+}
+
+.thumb-card img {
+    width: 100%;
+    height: 220px;
+    object-fit: contain;
+    background: #111;
+    display: block;
+}
+
+.thumb-label {
+    font-size: 0.72rem;
+    color: #555;
+    padding: 4px 6px 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.narrow-grid-actions {
+    margin-top: 8px;
+}
+
+/* --- Diptych panel (within narrow phase) --- */
+#diptych-panel h3 {
+    margin-bottom: 12px;
+    color: #444;
+}
+
+.diptych-image-block {
+    margin-bottom: 16px;
+}
+
+.diptych-label {
+    font-size: 0.8rem;
+    color: #888;
+    margin-bottom: 4px;
+}
+
+.diptych-gap-control {
+    margin-bottom: 12px;
+}
+
+.diptych-gap-control label {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #555;
+}
+
+.diptych-refresh-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+    padding: 8px 12px;
+    background: #fffbeb;
+    border-left: 4px solid #d69e2e;
+    border-radius: 4px;
+}
+
+.diptych-refresh-bar .warning-text {
+    font-size: 0.85rem;
+    color: #744210;
+    border: none;
+    padding: 0;
+    background: none;
+}
+
+/* --- Status badges --- */
+.status-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    margin-bottom: 4px;
+}
+
+.status-unprocessed, .statusunprocessed { background: #e2e8f0; color: #4a5568; }
+.status-usedsingle, .status-used-single { background: #c6f6d5; color: #22543d; }
+.status-useddiptych, .status-used-diptych { background: #e9d8fd; color: #44337a; }
+
+/* --- Gallery phase --- */
+.gallery-legend {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+}
+
+.gallery-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+}
+
+.gallery-card {
+    background: #f7f8fa;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid #e2e8f0;
+    display: flex;
+    flex-direction: column;
+}
+
+.gallery-thumb {
+    width: 100%;
+    height: 200px;
+    object-fit: contain;
+    background: #111;
+    display: block;
+}
+
+.gallery-info {
+    padding: 8px 10px 4px;
+}
+
+.gallery-filename {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #333;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 4px;
+}
+
+.gallery-dims {
+    font-size: 0.75rem;
+    color: #888;
+    margin-top: 2px;
+}
+
+.gallery-outputs {
+    padding: 6px 10px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: auto;
+}
+
+.download-link {
+    text-align: center;
+    text-decoration: none;
+}
+
+/* --- Gallery crop overlay --- */
+#gallery-crop-overlay {
+    margin-top: 24px;
+}
+
+.gallery-crop-card {
+    border: 2px solid #667eea;
+}
+
+.gallery-crop-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+}
+
+.gallery-crop-header h3 {
+    color: #444;
+    font-size: 1rem;
+}
+
+.gallery-crop-actions {
+    margin-top: 12px;
+}

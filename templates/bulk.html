@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bulk Mode - Frame TV Image Processor</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/bulk.css">
+</head>
+<body>
+    <header class="app-header">
+        <div class="header-content">
+            <h1>Frame TV Image Processor</h1>
+            <p>Bulk Mode &mdash; Process a whole folder at once</p>
+        </div>
+        <a href="/" class="back-link">&#8592; Back to Mode Selector</a>
+    </header>
+
+    <div class="container">
+
+        <!-- Phase Tab Navigation (hidden until scan completes) -->
+        <nav class="phase-tabs" id="phase-tabs" style="display:none">
+            <button class="phase-tab active" data-phase="setup" id="tab-setup">1. Setup</button>
+            <button class="phase-tab" data-phase="wide" id="tab-wide" disabled>2. Wide Images (<span id="tab-wide-count">0</span>)</button>
+            <button class="phase-tab" data-phase="narrow" id="tab-narrow" disabled>3. Narrow Pairs (<span id="tab-narrow-count">0</span>)</button>
+            <button class="phase-tab" data-phase="gallery" id="tab-gallery" disabled>4. Gallery</button>
+        </nav>
+
+        <!-- ===== PHASE 1: SETUP ===== -->
+        <section id="phase-setup" class="phase-section">
+            <div class="card">
+                <h2>Setup</h2>
+
+                <div class="form-group">
+                    <label for="folder-path">Folder path</label>
+                    <input type="text" id="folder-path" class="text-input"
+                           placeholder="e.g. C:\Users\You\Pictures\Artwork">
+                </div>
+
+                <div class="form-group">
+                    <label for="aspect-threshold">
+                        Wide/narrow threshold: <strong id="threshold-display">1.00</strong>
+                        <span class="label-hint">(images wider than this ratio are "wide")</span>
+                    </label>
+                    <input type="range" id="aspect-threshold" min="0.5" max="2.0" step="0.05" value="1.0" class="range-input">
+                    <div class="threshold-hints">
+                        <span>0.5 (tall portrait)</span>
+                        <span>1.0 (square)</span>
+                        <span>1.33 (4:3)</span>
+                        <span>1.78 (16:9)</span>
+                        <span>2.0</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Output preset</label>
+                    <div class="preset-buttons">
+                        {% for key, preset in presets.items() %}
+                        <button class="btn preset-btn" data-preset="{{ key }}"
+                                data-width="{{ preset.width }}"
+                                data-height="{{ preset.height }}"
+                                data-name="{{ preset.name }}">
+                            <strong>{{ preset.name }}</strong>
+                            <span>{{ preset.width }}&times;{{ preset.height }}</span>
+                        </button>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <button class="btn btn-primary" id="scan-btn" disabled>Scan Folder</button>
+                <div id="scan-status" class="status-message" style="display:none"></div>
+            </div>
+        </section>
+
+        <!-- ===== PHASE 2: WIDE IMAGES ===== -->
+        <section id="phase-wide" class="phase-section" style="display:none">
+            <div class="card">
+                <div class="wide-header">
+                    <h2>Wide Images</h2>
+                    <span class="wide-progress" id="wide-progress">Image 1 of 0</span>
+                </div>
+
+                <div class="wide-filename" id="wide-filename"></div>
+
+                <div class="letterbox-toggle">
+                    <label class="toggle-label">
+                        <input type="checkbox" id="wide-letterbox">
+                        Allow blank space (letterbox / pillarbox)
+                    </label>
+                </div>
+
+                <div class="image-container" id="wide-image-container">
+                    <img id="wide-crop-image" src="" alt="Image to crop">
+                </div>
+
+                <div class="crop-info" id="wide-crop-info"></div>
+
+                <div class="wide-actions">
+                    <button class="btn btn-primary" id="wide-process-btn">Process &amp; Next</button>
+                    <button class="btn btn-secondary" id="wide-skip-btn">Skip</button>
+                    <button class="btn btn-secondary" id="wide-done-btn">Done with Wide Images</button>
+                </div>
+
+                <div id="wide-status" class="status-message" style="display:none"></div>
+            </div>
+        </section>
+
+        <!-- ===== PHASE 3: NARROW PAIRS ===== -->
+        <section id="phase-narrow" class="phase-section" style="display:none">
+            <div class="card">
+                <h2>Narrow / Portrait Images</h2>
+                <p class="phase-hint">Click two images to pair them into a diptych. Paired images will be dimmed.</p>
+
+                <div class="narrow-phase-layout">
+                    <!-- Left: thumbnail grid -->
+                    <div>
+                        <div class="narrow-grid" id="narrow-grid"></div>
+                        <div class="narrow-grid-actions">
+                            <button class="btn btn-secondary" id="narrow-done-btn">Done &mdash; Go to Gallery</button>
+                        </div>
+                    </div>
+
+                    <!-- Right: diptych crop panel -->
+                    <div id="diptych-panel" style="display:none">
+                        <h3>Crop Pair</h3>
+
+                        <div class="diptych-image-block">
+                            <div class="diptych-label" id="diptych-label-1"></div>
+                            <div class="image-container">
+                                <img id="narrow-crop-image-1" src="" alt="Image 1">
+                            </div>
+                            <div class="crop-info" id="narrow-crop-info-1"></div>
+                        </div>
+
+                        <div id="diptych-gap-control" class="diptych-gap-control">
+                            <label for="narrow-gap-slider">
+                                Gap: <strong id="narrow-gap-display">1</strong>%
+                            </label>
+                            <input type="range" id="narrow-gap-slider" min="1" max="10" step="0.5" value="1" class="range-input">
+                        </div>
+
+                        <div id="narrow-refresh-bar" class="diptych-refresh-bar" style="display:none">
+                            <span class="warning-text">Image 1 crop changed &mdash; refresh Image 2 aspect ratio</span>
+                            <button class="btn btn-secondary btn-sm" id="narrow-refresh-btn">Refresh</button>
+                        </div>
+
+                        <div class="diptych-image-block">
+                            <div class="diptych-label" id="diptych-label-2"></div>
+                            <div class="image-container">
+                                <img id="narrow-crop-image-2" src="" alt="Image 2">
+                            </div>
+                            <div class="crop-info" id="narrow-crop-info-2"></div>
+                        </div>
+
+                        <button class="btn btn-primary" id="narrow-process-btn">Process Pair &amp; Continue</button>
+                        <button class="btn btn-secondary" id="narrow-cancel-btn">Cancel Selection</button>
+
+                        <div id="narrow-status" class="status-message" style="display:none"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ===== PHASE 4: GALLERY ===== -->
+        <section id="phase-gallery" class="phase-section" style="display:none">
+            <div class="card">
+                <h2>Gallery</h2>
+                <p class="phase-hint">All source images. Download processed outputs or create additional single-image exports.</p>
+
+                <div class="gallery-legend">
+                    <span class="status-badge status-unprocessed">Unprocessed</span>
+                    <span class="status-badge status-used-single">Single output</span>
+                    <span class="status-badge status-used-diptych">In a diptych</span>
+                </div>
+
+                <div class="gallery-grid" id="gallery-grid"></div>
+            </div>
+        </section>
+
+    </div><!-- /.container -->
+
+    <!-- Hidden: reusable crop image for gallery process-again -->
+    <div id="gallery-crop-overlay" style="display:none">
+        <div class="card gallery-crop-card">
+            <div class="gallery-crop-header">
+                <h3 id="gallery-crop-title">Process Again</h3>
+                <button class="btn btn-secondary btn-sm" id="gallery-crop-close">Close</button>
+            </div>
+            <div class="letterbox-toggle">
+                <label class="toggle-label">
+                    <input type="checkbox" id="gallery-letterbox">
+                    Allow blank space (letterbox / pillarbox)
+                </label>
+            </div>
+            <div class="image-container">
+                <img id="gallery-crop-image" src="" alt="Image to crop">
+            </div>
+            <div class="crop-info" id="gallery-crop-info"></div>
+            <div class="gallery-crop-actions">
+                <button class="btn btn-primary" id="gallery-process-btn">Process</button>
+            </div>
+            <div id="gallery-process-status" class="status-message" style="display:none"></div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
+    <script>
+        // Inject presets from Flask so bulk.js can use them without an extra fetch
+        window.BULK_PRESETS = {{ presets | tojson }};
+    </script>
+    <script src="/static/js/bulk.js"></script>
+</body>
+</html>

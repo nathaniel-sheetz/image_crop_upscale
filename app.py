@@ -1,4 +1,5 @@
 import os
+import shutil
 from flask import Flask, render_template, request, jsonify, send_file
 from PIL import Image
 from werkzeug.utils import secure_filename
@@ -72,14 +73,14 @@ def crop_and_upscale(input_path, output_path, crop_coords, target_width, target_
 
     return output_path
 
-def crop_and_combine_diptych(input_path1, input_path2, output_path, crop1, crop2, target_width, target_height):
+def crop_and_combine_diptych(input_path1, input_path2, output_path, crop1, crop2, target_width, target_height, gap_percent=1.0):
     """
     Crop two images and combine them side-by-side on a single canvas.
 
     The layout uses zero-waste math: image 1 is scaled to target height,
     image 2 fills the remaining width, with only a thin gap between them.
     """
-    gap = round(target_width * 0.01)
+    gap = round(target_width * gap_percent / 100)
 
     with Image.open(input_path1) as img1:
         left1 = int(crop1['x'])
@@ -234,6 +235,8 @@ def process_diptych():
     preset = data.get('preset', '4k')
     crop1 = data.get('crop1', {})
     crop2 = data.get('crop2', {})
+    gap_percent = float(data.get('gap_percent', 1.0))
+    gap_percent = max(1.0, min(10.0, gap_percent))
 
     if preset not in PRESETS:
         return jsonify({'error': 'Invalid preset'}), 400
@@ -265,7 +268,8 @@ def process_diptych():
             crop1,
             crop2,
             target_res['width'],
-            target_res['height']
+            target_res['height'],
+            gap_percent=gap_percent
         )
 
         return jsonify({
@@ -300,6 +304,89 @@ def download_file(filename):
         download_name = f'frame_tv_{filename}'
 
     return send_file(filepath, as_attachment=True, download_name=download_name)
+
+@app.route('/bulk')
+def bulk_app():
+    """Bulk mode: process a folder of images"""
+    return render_template('bulk.html', presets=PRESETS)
+
+
+@app.route('/bulk/scan', methods=['POST'])
+def bulk_scan():
+    """Scan a folder, classify images as wide or narrow, stage them in uploads/"""
+    data = request.json
+
+    if not data or 'folder_path' not in data:
+        return jsonify({'error': 'No folder_path provided'}), 400
+
+    folder_path = data['folder_path']
+    aspect_threshold = float(data.get('aspect_threshold', 1.0))
+
+    if not os.path.exists(folder_path):
+        return jsonify({'error': 'Folder not found'}), 404
+
+    if not os.path.isdir(folder_path):
+        return jsonify({'error': 'Path is not a directory'}), 400
+
+    wide = []
+    narrow = []
+    skipped = []
+
+    try:
+        entries = sorted(os.listdir(folder_path))
+    except PermissionError:
+        return jsonify({'error': 'Permission denied reading folder'}), 403
+
+    for entry in entries:
+        if not allowed_file(entry):
+            continue
+
+        source_path = os.path.join(folder_path, entry)
+        if not os.path.isfile(source_path):
+            continue
+
+        try:
+            with Image.open(source_path) as img:
+                width, height = img.size
+        except Exception:
+            skipped.append(entry)
+            continue
+
+        aspect_ratio = width / height
+        safe_name = secure_filename(entry)
+        unique_filename = f"{uuid.uuid4()}_{safe_name}"
+        dest_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
+
+        try:
+            shutil.copy2(source_path, dest_path)
+        except Exception:
+            skipped.append(entry)
+            continue
+
+        record = {
+            'upload_filename': unique_filename,
+            'original_filename': entry,
+            'url': f'/uploads/{unique_filename}',
+            'width': width,
+            'height': height,
+            'aspect_ratio': round(aspect_ratio, 4),
+        }
+
+        if aspect_ratio > aspect_threshold:
+            wide.append(record)
+        else:
+            narrow.append(record)
+
+    return jsonify({
+        'success': True,
+        'wide': wide,
+        'narrow': narrow,
+        'skipped': skipped,
+        'wide_count': len(wide),
+        'narrow_count': len(narrow),
+        'total': len(wide) + len(narrow),
+    })
+
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
