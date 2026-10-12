@@ -205,10 +205,6 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
-    <script>
-        // Inject presets from Flask so bulk.js can use them without an extra fetch
-        window.BULK_PRESETS = {{ presets | tojson }};
-    </script>
     <script src="/static/js/bulk.js"></script>
 </body>
 </html>

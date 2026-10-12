@@ -18,7 +18,6 @@ const bulkState = {
     wideIndex: 0,
     wideCropper: null,
     wideLetterbox: false,
-    wideCrop1Changed: false,
 
     // Narrow phase
     selectedNarrowIndices: [],
@@ -26,12 +25,13 @@ const bulkState = {
     narrowCropper2: null,
     narrowGapPercent: 1,
     narrowCrop1Data: null,
+    // Bumped on every open/close so callbacks from a stale selection bail out
+    diptychToken: 0,
 
     // Gallery process-again
     galleryCropper: null,
     galleryTargetFilename: null,
     galleryTargetOriginal: null,
-    galleryTargetCardEl: null,
 
     // Per-image tracking keyed by upload_filename
     // values: 'unprocessed' | 'used-single' | 'used-diptych'
@@ -56,6 +56,15 @@ function triggerDownload(url, filename) {
 // DOM helpers
 // ---------------------------------------------------------------------------
 function $(id) { return document.getElementById(id); }
+
+// Parse a JSON response; fall back to a generic error for HTML/empty bodies
+async function readJson(resp) {
+    try {
+        return await resp.json();
+    } catch {
+        return { error: `Server error (${resp.status})` };
+    }
+}
 
 function showPhase(name) {
     ['setup', 'wide', 'narrow', 'gallery'].forEach(p => {
@@ -147,7 +156,7 @@ async function scanFolder() {
                 preset: bulkState.preset,
             }),
         });
-        const data = await resp.json();
+        const data = await readJson(resp);
 
         if (!resp.ok || !data.success) {
             setStatus('scan-status', data.error || 'Scan failed', 'error');
@@ -155,6 +164,7 @@ async function scanFolder() {
             return;
         }
 
+        resetSession();
         bulkState.wideImages = data.wide;
         bulkState.narrowImages = data.narrow;
 
@@ -200,12 +210,28 @@ async function scanFolder() {
     }
 }
 
+// Clear croppers, selections and per-image tracking left over from a previous scan
+function resetSession() {
+    if (bulkState.wideCropper) {
+        bulkState.wideCropper.destroy();
+        bulkState.wideCropper = null;
+    }
+    bulkState.wideIndex = 0;
+    setWideBusy(false);
+    bulkState.selectedNarrowIndices = [];
+    closeDiptychPanel();
+    setStatus('narrow-status', '', '');
+    closeGalleryCrop();
+    bulkState.imageStatus = {};
+    bulkState.processedOutputs = {};
+}
+
 // ---------------------------------------------------------------------------
 // Wide phase
 // ---------------------------------------------------------------------------
 function initWidePhase() {
     $('wide-process-btn').addEventListener('click', processWideImage);
-    $('wide-skip-btn').addEventListener('click', () => advanceWide(false));
+    $('wide-skip-btn').addEventListener('click', () => advanceWide());
     $('wide-done-btn').addEventListener('click', transitionToNarrow);
 
     $('wide-letterbox').addEventListener('change', e => {
@@ -243,7 +269,7 @@ function loadWideImage(index) {
             : bulkState.presetData.width / bulkState.presetData.height;
 
         bulkState.wideCropper = new Cropper(cropImg, {
-            aspectRatio: isNaN(aspectRatio) ? NaN : aspectRatio,
+            aspectRatio,
             viewMode: 1,
             autoCropArea: 1,
             movable: true,
@@ -267,7 +293,7 @@ function reinitWideCropper() {
         : bulkState.presetData.width / bulkState.presetData.height;
 
     bulkState.wideCropper = new Cropper(cropImg, {
-        aspectRatio: isNaN(aspectRatio) ? NaN : aspectRatio,
+        aspectRatio,
         viewMode: 1,
         autoCropArea: 1,
         movable: true,
@@ -299,7 +325,7 @@ async function processWideImage() {
     const img = bulkState.wideImages[bulkState.wideIndex];
     const cropData = bulkState.wideCropper.getData(true);
 
-    $('wide-process-btn').disabled = true;
+    setWideBusy(true);
     setStatus('wide-status', 'Processing...', 'loading');
 
     try {
@@ -314,11 +340,11 @@ async function processWideImage() {
                 letterbox: bulkState.wideLetterbox,
             }),
         });
-        const data = await resp.json();
+        const data = await readJson(resp);
 
         if (!resp.ok || !data.success) {
             setStatus('wide-status', data.error || 'Processing failed', 'error');
-            $('wide-process-btn').disabled = false;
+            setWideBusy(false);
             return;
         }
 
@@ -331,16 +357,24 @@ async function processWideImage() {
 
         triggerDownload(data.download_url, data.suggested_filename);
         setStatus('wide-status', `Saved: ${data.suggested_filename}`, 'success');
-        advanceWide(true);
+        advanceWide();
 
     } catch (err) {
         setStatus('wide-status', `Network error: ${err.message}`, 'error');
-        $('wide-process-btn').disabled = false;
+        setWideBusy(false);
     }
 }
 
-function advanceWide(wasProcessed) {
-    $('wide-process-btn').disabled = false;
+// Lock all wide-phase actions while a request is in flight so Skip/Done
+// can't advance the index underneath a pending Process
+function setWideBusy(busy) {
+    $('wide-process-btn').disabled = busy;
+    $('wide-skip-btn').disabled = busy;
+    $('wide-done-btn').disabled = busy;
+}
+
+function advanceWide() {
+    setWideBusy(false);
     bulkState.wideIndex++;
     if (bulkState.wideIndex < bulkState.wideImages.length) {
         loadWideImage(bulkState.wideIndex);
@@ -416,7 +450,7 @@ function renderNarrowGrid() {
         label.textContent = img.original_filename;
 
         const badge = document.createElement('span');
-        badge.className = `status-badge status-${status.replace('-', '')}`;
+        badge.className = `status-badge status-${status.replace(/-/g, '')}`;
         badge.textContent = statusLabel(status);
 
         card.appendChild(thumb);
@@ -469,29 +503,44 @@ function openDiptychCrop() {
     $('narrow-gap-slider').value = 1;
     $('narrow-gap-display').textContent = 1;
 
-    // Init cropper 1
     if (bulkState.narrowCropper1) { bulkState.narrowCropper1.destroy(); bulkState.narrowCropper1 = null; }
     if (bulkState.narrowCropper2) { bulkState.narrowCropper2.destroy(); bulkState.narrowCropper2 = null; }
     bulkState.narrowCrop1Data = null;
+    $('narrow-process-btn').disabled = true;
+
+    const token = ++bulkState.diptychToken;
+    let cropper1Ready = false;
+    let image2Loaded = false;
+
+    // Image 2's ratio is derived from image 1's crop, so its cropper can only be
+    // built once image 1's cropper is ready AND image 2 has loaded (either order)
+    const maybeInitCropper2 = () => {
+        if (token !== bulkState.diptychToken) return;
+        if (!cropper1Ready || !image2Loaded) return;
+        bulkState.narrowCrop1Data = bulkState.narrowCropper1.getData(true);
+        initNarrowCropper2();
+    };
 
     const cropImg1 = $('narrow-crop-image-1');
     cropImg1.src = img1.url + '?t=' + Date.now();
     cropImg1.onload = () => {
-        const targetAspect = bulkState.presetData.width / bulkState.presetData.height;
-        // For portrait images, a tall aspect is natural — use preset height ratio
-        // We'll lock image1 to a tall sub-ratio. Use free aspect until crop is ready.
+        if (token !== bulkState.diptychToken) return;
         bulkState.narrowCropper1 = new Cropper(cropImg1, {
             aspectRatio: NaN,
             viewMode: 1,
             autoCropArea: 1,
             movable: true,
-            cropend() {
-                bulkState.narrowCrop1Data = bulkState.narrowCropper1.getData(true);
-                $('narrow-refresh-bar').style.display = '';
-                updateNarrowCropInfo1();
+            ready() {
+                cropper1Ready = true;
+                maybeInitCropper2();
             },
             crop(event) {
                 updateNarrowCropInfo1(event.detail);
+                // Track every change (drag, resize, wheel zoom) once cropper 2 exists
+                if (bulkState.narrowCropper2) {
+                    bulkState.narrowCrop1Data = bulkState.narrowCropper1.getData(true);
+                    $('narrow-refresh-bar').style.display = '';
+                }
             },
         });
     };
@@ -499,14 +548,8 @@ function openDiptychCrop() {
     const cropImg2 = $('narrow-crop-image-2');
     cropImg2.src = img2.url + '?t=' + Date.now();
     cropImg2.onload = () => {
-        // Wait for cropper1 to be ready before computing ratio
-        // Use a small delay to let cropper1 initialize
-        setTimeout(() => {
-            bulkState.narrowCrop1Data = bulkState.narrowCropper1
-                ? bulkState.narrowCropper1.getData(true)
-                : null;
-            initNarrowCropper2();
-        }, 200);
+        image2Loaded = true;
+        maybeInitCropper2();
     };
 }
 
@@ -530,6 +573,16 @@ function initNarrowCropper2() {
 
     const ratio = computeImage2Ratio();
     const cropImg2 = $('narrow-crop-image-2');
+
+    if (ratio) {
+        setStatus('narrow-status', '', '');
+        $('narrow-process-btn').disabled = false;
+    } else {
+        setStatus('narrow-status',
+            "Image 1's crop is too wide to leave room for image 2. Narrow it, then click Refresh.",
+            'error');
+        $('narrow-process-btn').disabled = true;
+    }
 
     bulkState.narrowCropper2 = new Cropper(cropImg2, {
         aspectRatio: ratio || NaN,
@@ -559,6 +612,7 @@ function updateNarrowCropInfo2(detail) {
 }
 
 function closeDiptychPanel() {
+    bulkState.diptychToken++;
     $('diptych-panel').style.display = 'none';
     if (bulkState.narrowCropper1) { bulkState.narrowCropper1.destroy(); bulkState.narrowCropper1 = null; }
     if (bulkState.narrowCropper2) { bulkState.narrowCropper2.destroy(); bulkState.narrowCropper2 = null; }
@@ -580,6 +634,19 @@ async function processNarrowPair() {
     const crop1 = bulkState.narrowCropper1.getData(true);
     const crop2 = bulkState.narrowCropper2.getData(true);
 
+    // The server stretches crop 2 to fill the remaining width, so refuse to send
+    // a crop 2 whose ratio no longer matches crop 1 + gap (it would be distorted)
+    bulkState.narrowCrop1Data = crop1;
+    const expected = computeImage2Ratio();
+    const actual = crop2.height ? crop2.width / crop2.height : 0;
+    if (!expected || Math.abs(actual - expected) / expected > 0.02) {
+        setStatus('narrow-status',
+            "Image 2's crop no longer matches image 1. Click Refresh before processing.",
+            'error');
+        $('narrow-refresh-bar').style.display = '';
+        return;
+    }
+
     $('narrow-process-btn').disabled = true;
     setStatus('narrow-status', 'Processing diptych...', 'loading');
 
@@ -598,7 +665,7 @@ async function processNarrowPair() {
                 gap_percent: bulkState.narrowGapPercent,
             }),
         });
-        const data = await resp.json();
+        const data = await readJson(resp);
 
         if (!resp.ok || !data.success) {
             setStatus('narrow-status', data.error || 'Processing failed', 'error');
@@ -699,7 +766,7 @@ function renderGallery() {
         const reprocessBtn = document.createElement('button');
         reprocessBtn.className = 'btn btn-secondary btn-sm';
         reprocessBtn.textContent = 'Process Again (Single)';
-        reprocessBtn.addEventListener('click', () => openGalleryCrop(img, card));
+        reprocessBtn.addEventListener('click', () => openGalleryCrop(img));
         outputsEl.appendChild(reprocessBtn);
 
         card.appendChild(thumb);
@@ -710,7 +777,7 @@ function renderGallery() {
     });
 }
 
-function openGalleryCrop(img, cardEl) {
+function openGalleryCrop(img) {
     if (bulkState.galleryCropper) {
         bulkState.galleryCropper.destroy();
         bulkState.galleryCropper = null;
@@ -718,7 +785,6 @@ function openGalleryCrop(img, cardEl) {
 
     bulkState.galleryTargetFilename = img.upload_filename;
     bulkState.galleryTargetOriginal = img.original_filename;
-    bulkState.galleryTargetCardEl = cardEl;
 
     $('gallery-crop-title').textContent = `Process Again: ${img.original_filename}`;
     $('gallery-letterbox').checked = false;
@@ -739,13 +805,15 @@ function openGalleryCrop(img, cardEl) {
             viewMode: 1,
             autoCropArea: 1,
             movable: true,
-            crop(event) {
-                const d = event.detail;
-                $('gallery-crop-info').textContent =
-                    `Crop: ${Math.round(d.width)} × ${Math.round(d.height)}px`;
-            },
+            crop: updateGalleryCropInfo,
         });
     };
+}
+
+function updateGalleryCropInfo(event) {
+    const d = event.detail;
+    $('gallery-crop-info').textContent =
+        `Crop: ${Math.round(d.width)} × ${Math.round(d.height)}px`;
 }
 
 function initGalleryPhase() {
@@ -764,6 +832,7 @@ function initGalleryPhase() {
             viewMode: 1,
             autoCropArea: 1,
             movable: true,
+            crop: updateGalleryCropInfo,
         });
     });
 
@@ -798,7 +867,7 @@ async function processGalleryImage() {
                 letterbox,
             }),
         });
-        const data = await resp.json();
+        const data = await readJson(resp);
 
         if (!resp.ok || !data.success) {
             setStatus('gallery-process-status', data.error || 'Processing failed', 'error');

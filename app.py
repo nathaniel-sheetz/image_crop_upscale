@@ -235,7 +235,10 @@ def process_diptych():
     preset = data.get('preset', '4k')
     crop1 = data.get('crop1', {})
     crop2 = data.get('crop2', {})
-    gap_percent = float(data.get('gap_percent', 1.0))
+    try:
+        gap_percent = float(data.get('gap_percent', 1.0))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Invalid gap_percent'}), 400
     gap_percent = max(1.0, min(10.0, gap_percent))
 
     if preset not in PRESETS:
@@ -314,13 +317,23 @@ def bulk_app():
 @app.route('/bulk/scan', methods=['POST'])
 def bulk_scan():
     """Scan a folder, classify images as wide or narrow, stage them in uploads/"""
+    # Reads arbitrary server-side folders, so only the local machine may call it
+    if request.remote_addr not in ('127.0.0.1', '::1'):
+        return jsonify({'error': 'Bulk scan is only available from localhost'}), 403
+
     data = request.json
 
     if not data or 'folder_path' not in data:
         return jsonify({'error': 'No folder_path provided'}), 400
 
     folder_path = data['folder_path']
-    aspect_threshold = float(data.get('aspect_threshold', 1.0))
+    if not isinstance(folder_path, str):
+        return jsonify({'error': 'folder_path must be a string'}), 400
+
+    try:
+        aspect_threshold = float(data.get('aspect_threshold', 1.0))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Invalid aspect_threshold'}), 400
 
     if not os.path.exists(folder_path):
         return jsonify({'error': 'Folder not found'}), 404
@@ -389,4 +402,4 @@ def bulk_scan():
 
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True, host='127.0.0.1', port=5000)

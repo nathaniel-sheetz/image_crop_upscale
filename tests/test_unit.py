@@ -564,6 +564,9 @@ class TestCropAndCombineDiptych:
 
             with Image.open(output) as result:
                 assert result.size == (target_w, target_h)
+                # 1% of 1920 = 19px black gap after image 1 (480px wide at 1080 tall)
+                r, g, b = result.convert('RGB').getpixel((480 + 19 // 2, 540))
+                assert max(r, g, b) < 40
         finally:
             for p in [input1, input2, output]:
                 if os.path.exists(p):

@@ -2,7 +2,6 @@ import pytest
 import json
 import io
 import os
-import tempfile
 from PIL import Image
 
 class TestIndexRoute:
@@ -564,6 +563,31 @@ class TestProcessDiptychEndpoint:
         json_data = response.get_json()
         assert json_data['success'] == True
 
+        # Clamped to 1% of 1920 = 19px gap after image 1 (480px wide at 1080 tall)
+        processed_path = os.path.join(app.config['PROCESSED_FOLDER'], json_data['filename'])
+        with Image.open(processed_path) as img:
+            r, g, b = img.convert('RGB').getpixel((480 + 19 // 2, 540))
+            assert max(r, g, b) < 40
+
+    def test_diptych_invalid_gap_percent(self, client, sample_image_portrait, sample_image_portrait_2):
+        """Non-numeric gap_percent returns 400 instead of crashing"""
+        upload1 = self._upload_image(client, sample_image_portrait, 'portrait1.jpg')
+        upload2 = self._upload_image(client, sample_image_portrait_2, 'portrait2.jpg')
+
+        process_data = {
+            'filename1': upload1['filename'],
+            'filename2': upload2['filename'],
+            'preset': 'fhd',
+            'gap_percent': 'abc',
+            'crop1': {'x': 0, 'y': 0, 'width': 400, 'height': 900},
+            'crop2': {'x': 0, 'y': 0, 'width': 500, 'height': 800}
+        }
+        response = client.post('/process-diptych',
+                               data=json.dumps(process_data),
+                               content_type='application/json')
+
+        assert response.status_code == 400
+
 
 class TestUploadedFileEndpoint:
     """Test the /uploads/<filename> endpoint"""
@@ -622,6 +646,34 @@ class TestBulkScan:
         f = tmp_path / 'notadir.jpg'
         f.write_bytes(b'dummy')
         payload = {'folder_path': str(f)}
+        response = client.post('/bulk/scan',
+                               data=json.dumps(payload),
+                               content_type='application/json')
+        assert response.status_code == 400
+        assert 'error' in response.get_json()
+
+    def test_scan_rejects_non_local_client(self, client, tmp_path):
+        """Requests from another machine are refused with 403"""
+        payload = {'folder_path': str(tmp_path)}
+        response = client.post('/bulk/scan',
+                               data=json.dumps(payload),
+                               content_type='application/json',
+                               environ_base={'REMOTE_ADDR': '192.168.1.50'})
+        assert response.status_code == 403
+        assert 'error' in response.get_json()
+
+    def test_scan_invalid_threshold(self, client, tmp_path):
+        """Non-numeric aspect_threshold returns 400 instead of crashing"""
+        payload = {'folder_path': str(tmp_path), 'aspect_threshold': 'abc'}
+        response = client.post('/bulk/scan',
+                               data=json.dumps(payload),
+                               content_type='application/json')
+        assert response.status_code == 400
+        assert 'error' in response.get_json()
+
+    def test_scan_folder_path_not_string(self, client):
+        """Non-string folder_path returns 400 instead of crashing"""
+        payload = {'folder_path': ['a', 'b']}
         response = client.post('/bulk/scan',
                                data=json.dumps(payload),
                                content_type='application/json')
