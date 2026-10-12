@@ -9,6 +9,7 @@ ENV/
 uploads/
 processed/
 .DS_Store
+directories/
 
 # Testing
 .pytest_cache/

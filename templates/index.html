@@ -95,10 +95,19 @@
             <section id="diptych-crop-section" class="card" style="display: none;">
                 <h2>Step 3c: Crop Second Image</h2>
                 <p class="instruction">Aspect ratio is locked to fit alongside image 1</p>
+                <div id="diptych-gap-control" style="display: none;">
+                    <label>Gap size: <span id="gap-px-display">~38px</span></label>
+                    <input type="range" id="gap-slider" min="1" max="10" value="1" step="1">
+                    <span id="gap-percent-display">1%</span>
+                </div>
                 <div class="image-container">
                     <img id="crop-image-2" src="" alt="Second image to crop">
                 </div>
                 <div class="crop-info" id="crop-info-2"></div>
+                <div id="diptych-refresh-bar" style="display: none;">
+                    <span>Image 1 crop changed — click Refresh to update Image 2.</span>
+                    <button id="diptych-refresh-btn" class="btn btn-warning btn-sm">Refresh Image 2 crop</button>
+                </div>
                 <div id="diptych-crop-warning" class="warning-text" style="display: none;"></div>
             </section>
 
